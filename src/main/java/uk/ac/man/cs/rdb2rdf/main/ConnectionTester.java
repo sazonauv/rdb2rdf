@@ -7,7 +7,7 @@ import java.util.Properties;
 /**
  * Created by slava on 27/02/17.
  */
-public class TestConnection {
+public class ConnectionTester {
     public static void main(String args[]) {
         Connection c = null;
         try {
