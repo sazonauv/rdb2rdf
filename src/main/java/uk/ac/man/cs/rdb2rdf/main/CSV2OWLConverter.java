@@ -52,7 +52,7 @@ public class CSV2OWLConverter {
                     String[] row = line.split(CSV_DELIMITER);
                     // debug
                     i++;
-                    if (i % 1e6 == 0) {
+                    if (i % 1e5 == 0) {
                         System.out.println(i + " lines are processed");
                     }
                     processRowAsPopulationDiagnosis(row);
@@ -196,7 +196,8 @@ public class CSV2OWLConverter {
                 .replace("\'", "").replace("\n", "")
                 .replace("\t", "").replace("\r", "")
                 .replace("\\", ENTITY_DELIMITER)
-                .replace("/", ENTITY_DELIMITER);
+                .replace("/", ENTITY_DELIMITER)
+                .replace("%", "").replace("(", "").replace(")", "");
     }
 
 
