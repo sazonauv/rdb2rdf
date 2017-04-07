@@ -55,7 +55,8 @@ public class CSV2OWLConverter {
                     if (i % 1e5 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsPopulationDiagnosis(row);
+//                    processRowAsPopulationDiagnosis(row);
+                    processRowAsVitalsDiagnosis(row);
                 }
             }
         } catch (Exception e) {
@@ -88,9 +89,9 @@ public class CSV2OWLConverter {
         // measurements
         String measStr = processCell(row[1]);
         IRI measIRI = IRI.create(IRI_NAME + IRI_DELIMITER + measStr);
-        if (measIRI.toString().contains("http://owl.cs.manchester.ac.uk/healthefacts#Temperature")) {
-            return;
-        }
+//        if (measIRI.toString().contains("http://owl.cs.manchester.ac.uk/healthefacts#Temperature")) {
+//            return;
+//        }
         OWLDataProperty measProp = factory.getOWLDataProperty(measIRI);
         // numeric results of measurements
         String measResStr = processCell(row[2]);
@@ -120,8 +121,8 @@ public class CSV2OWLConverter {
         IRI ageIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "hasAge");
         OWLDataProperty ageProp = factory.getOWLDataProperty(ageIRI);
         String ageStr = processCell(row[1]);
-        double age = Double.parseDouble(ageStr);
-        if (age > 200) {
+        double age = Math.round(Double.parseDouble(ageStr));
+        if (age > 100) {
             age = 1;
         }
         OWLLiteral ageLit = factory.getOWLLiteral(age);
