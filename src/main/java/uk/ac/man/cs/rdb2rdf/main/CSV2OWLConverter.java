@@ -3,11 +3,8 @@ package uk.ac.man.cs.rdb2rdf.main;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 
-import javax.xml.namespace.QName;
 import java.io.*;
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -52,11 +49,11 @@ public class CSV2OWLConverter {
                     String[] row = line.split(CSV_DELIMITER);
                     // debug
                     i++;
-                    if (i % 1e5 == 0) {
+                    if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
 //                    processRowAsPopulationDiagnosis(row);
-                    processRowAsVitalsDiagnosis(row);
+                    processRowAsVitalsDiagnosisICD9(row);
                 }
             }
         } catch (Exception e) {
@@ -80,6 +77,48 @@ public class CSV2OWLConverter {
 
 
 
+
+    // see join_vitals_diagnosis.sql
+    private void processRowAsVitalsDiagnosisICD9(String[] row) {
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+        // measurements
+        String measStr = processCell(row[1]);
+        IRI measIRI = IRI.create(IRI_NAME + IRI_DELIMITER + measStr);
+        OWLDataProperty measProp = factory.getOWLDataProperty(measIRI);
+        // numeric results of measurements
+        String measResStr = processCell(row[2]);
+        double measRes = Double.parseDouble(measResStr);
+        if (measRes == 0) {
+            return;
+        }
+        OWLLiteral measResLit = factory.getOWLLiteral(measRes);
+        // medical conditions
+        String condStr = processCell(row[3]);
+        OWLClass condClass = findICD9Class(condStr);
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, encInd));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(measProp, encInd, measResLit));
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+    private OWLClass findICD9Class(String code) {
+        Set<OWLClass> cls = ontology.getClassesInSignature();
+        for (OWLClass cl : cls) {
+            IRI clIri = cl.getIRI();
+            String clCode = clIri.toString().replace("http://purl.bioontology.org/ontology/ICD9CM/", "");
+            if (clCode.equals(code)) {
+                return cl;
+            }
+        }
+        return null;
+    }
+
+
     // see join_vitals_diagnosis.sql
     private void processRowAsVitalsDiagnosis(String[] row) {
         // encounter
@@ -96,6 +135,9 @@ public class CSV2OWLConverter {
         // numeric results of measurements
         String measResStr = processCell(row[2]);
         double measRes = Double.parseDouble(measResStr);
+        if (measRes == 0) {
+            return;
+        }
         OWLLiteral measResLit = factory.getOWLLiteral(measRes);
         // medical conditions
         String condStr = processCell(row[3]);
@@ -207,10 +249,42 @@ public class CSV2OWLConverter {
             throws OWLOntologyCreationException,
             IOException, OWLOntologyStorageException {
         CSV2OWLConverter converter = new CSV2OWLConverter();
+        converter.addICD9Ontology(new File(args[2]));
         converter.createOntology(new File(args[0]), new File(args[1]));
     }
 
 
+
+    private void addICD9Ontology(File file) throws OWLOntologyCreationException {
+        System.out.println("Loading ICD9 terminology");
+        OWLOntology icd9Ontology = manager.loadOntologyFromOntologyDocument(file);
+        // get class hierarchy
+        System.out.println("Adding class hierarchy");
+        Set<OWLSubClassOfAxiom> classAxioms = new HashSet<>();
+        Set<OWLClass> cls = new HashSet<>();
+        for (OWLAxiom axiom : icd9Ontology.getAxioms()) {
+            if (axiom instanceof OWLSubClassOfAxiom) {
+                OWLSubClassOfAxiom clAxiom = (OWLSubClassOfAxiom) axiom;
+                classAxioms.add(clAxiom);
+                cls.addAll(clAxiom.getClassesInSignature());
+            }
+        }
+        System.out.println("Class axioms are added: " + classAxioms.size());
+        // get annotations
+        System.out.println("Adding annotations");
+        Set<OWLAnnotationAssertionAxiom> labelAnnots = new HashSet<>();
+        for (OWLClass cl : cls) {
+            Set<OWLAnnotationAssertionAxiom> annots = icd9Ontology.getAnnotationAssertionAxioms(cl.getIRI());
+            for (OWLAnnotationAssertionAxiom annot : annots) {
+                if (annot.getProperty().getIRI().toString().contains("prefLabel")) {
+                    labelAnnots.add(annot);
+                }
+            }
+        }
+        System.out.println("Annotations are added: " + labelAnnots.size());
+        manager.addAxioms(ontology, classAxioms);
+        manager.addAxioms(ontology, labelAnnots);
+    }
 
 
 }
