@@ -4,7 +4,9 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 
 import java.io.*;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -52,8 +54,8 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-//                    processRowAsPopulationDiagnosis(row);
-                    processRowAsVitalsDiagnosisICD9(row);
+                    processRowAsPopulationDiagnosisICD9PatientID(row);
+//                    processRowAsVitalsDiagnosisICD9(row);
                 }
             }
         } catch (Exception e) {
@@ -70,12 +72,50 @@ public class CSV2OWLConverter {
         if (!ontFile.exists()) {
             ontFile.createNewFile();
         }
+
+        // filter temporal information
+        removeMultipleAge();
+
         FileOutputStream outputStream = new FileOutputStream(ontFile);
         BufferedOutputStream buffOutputStream = new BufferedOutputStream(outputStream);
         manager.saveOntology(ontology, buffOutputStream);
     }
 
 
+    private void removeMultipleAge() {
+        Map<OWLNamedIndividual, Double> indAgeMap = new HashMap<>();
+        for (OWLAxiom axiom : ontology.getLogicalAxioms()) {
+            if (axiom instanceof OWLDataPropertyAssertionAxiom) {
+                OWLDataPropertyAssertionAxiom dpAss = (OWLDataPropertyAssertionAxiom) axiom;
+                OWLDataPropertyExpression dp = dpAss.getProperty();
+                if (dp.asOWLDataProperty().getIRI().toString().contains("hasAge")) {
+                    Double age = dpAss.getObject().parseDouble();
+                    OWLNamedIndividual ind = dpAss.getSubject().asOWLNamedIndividual();
+                    Double oldAge = indAgeMap.get(ind);
+                    if (oldAge == null || oldAge < age) {
+                        indAgeMap.put(ind, age);
+                    }
+                }
+            }
+        }
+        // find axioms to be removed
+        Set<OWLAxiom> removals = new HashSet<>();
+        for (OWLAxiom axiom : ontology.getLogicalAxioms()) {
+            if (axiom instanceof OWLDataPropertyAssertionAxiom) {
+                OWLDataPropertyAssertionAxiom dpAss = (OWLDataPropertyAssertionAxiom) axiom;
+                OWLDataPropertyExpression dp = dpAss.getProperty();
+                if (dp.asOWLDataProperty().getIRI().toString().contains("hasAge")) {
+                    Double age = dpAss.getObject().parseDouble();
+                    OWLNamedIndividual ind = dpAss.getSubject().asOWLNamedIndividual();
+                    Double maxAge = indAgeMap.get(ind);
+                    if (age < maxAge) {
+                        removals.add(axiom);
+                    }
+                }
+            }
+        }
+        manager.removeAxioms(ontology, removals);
+    }
 
 
     // see join_vitals_diagnosis.sql
@@ -152,6 +192,80 @@ public class CSV2OWLConverter {
 
 
 
+    // see join_population_diagnosis.sql
+    private void processRowAsPopulationDiagnosisICD9PatientID(String[] row) {
+        // patient id
+        String patId = processCell(row[0]);
+        IRI patIRI = IRI.create(IRI_NAME + IRI_DELIMITER + patId);
+        OWLNamedIndividual patInd = factory.getOWLNamedIndividual(patIRI);
+        // age
+        IRI ageIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "hasAge");
+        OWLDataProperty ageProp = factory.getOWLDataProperty(ageIRI);
+        String ageStr = processCell(row[1]);
+        double age = Math.round(Double.parseDouble(ageStr));
+        if (age > 100) {
+            return;
+        }
+        OWLLiteral ageLit = factory.getOWLLiteral(age);
+        // gender
+        String genderStr = processCell(row[2]);
+        IRI genderIRI = IRI.create(IRI_NAME + IRI_DELIMITER + genderStr);
+        OWLClass genderClass = factory.getOWLClass(genderIRI);
+        // race
+        String raceStr = processCell(row[3]);
+        IRI raceIRI = IRI.create(IRI_NAME + IRI_DELIMITER + raceStr);
+        OWLClass raceClass = factory.getOWLClass(raceIRI);
+        // medical conditions
+        String condStr = processCell(row[4]);
+        OWLClass condClass = findICD9Class(condStr);
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLClassAssertionAxiom(genderClass, patInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(raceClass, patInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, patInd));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(ageProp, patInd, ageLit));
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+
+
+    // see join_population_diagnosis.sql
+    private void processRowAsPopulationDiagnosisICD9(String[] row) {
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+        // age
+        IRI ageIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "hasAge");
+        OWLDataProperty ageProp = factory.getOWLDataProperty(ageIRI);
+        String ageStr = processCell(row[1]);
+        double age = Math.round(Double.parseDouble(ageStr));
+        if (age > 100) {
+            return;
+        }
+        OWLLiteral ageLit = factory.getOWLLiteral(age);
+        // gender
+        String genderStr = processCell(row[2]);
+        IRI genderIRI = IRI.create(IRI_NAME + IRI_DELIMITER + genderStr);
+        OWLClass genderClass = factory.getOWLClass(genderIRI);
+        // race
+        String raceStr = processCell(row[3]);
+        IRI raceIRI = IRI.create(IRI_NAME + IRI_DELIMITER + raceStr);
+        OWLClass raceClass = factory.getOWLClass(raceIRI);
+        // medical conditions
+        String condStr = processCell(row[4]);
+        OWLClass condClass = findICD9Class(condStr);
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLClassAssertionAxiom(genderClass, encInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(raceClass, encInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, encInd));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(ageProp, encInd, ageLit));
+        manager.addAxioms(ontology, axioms);
+    }
+
+
 
     // see join_population_diagnosis.sql
     private void processRowAsPopulationDiagnosis(String[] row) {
@@ -165,7 +279,7 @@ public class CSV2OWLConverter {
         String ageStr = processCell(row[1]);
         double age = Math.round(Double.parseDouble(ageStr));
         if (age > 100) {
-            age = 1;
+            return;
         }
         OWLLiteral ageLit = factory.getOWLLiteral(age);
         // gender
