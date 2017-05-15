@@ -24,6 +24,8 @@ public class CSV2OWLConverter {
     private OWLOntology ontology;
     private OWLDataFactory factory;
 
+    private Map<String, OWLClass> icd9Map;
+
 
     public CSV2OWLConverter() throws OWLOntologyCreationException {
         // create an ontology
@@ -54,7 +56,8 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsPopulationDiagnosisICD9PatientID(row);
+                    processRowAsMedicineDiagnosisICD9(row);
+//                    processRowAsPopulationDiagnosisICD9PatientID(row);
 //                    processRowAsVitalsDiagnosisICD9(row);
                 }
             }
@@ -147,15 +150,7 @@ public class CSV2OWLConverter {
 
 
     private OWLClass findICD9Class(String code) {
-        Set<OWLClass> cls = ontology.getClassesInSignature();
-        for (OWLClass cl : cls) {
-            IRI clIri = cl.getIRI();
-            String clCode = clIri.toString().replace("http://purl.bioontology.org/ontology/ICD9CM/", "");
-            if (clCode.equals(code)) {
-                return cl;
-            }
-        }
-        return null;
+        return icd9Map.get(code);
     }
 
 
@@ -187,6 +182,33 @@ public class CSV2OWLConverter {
         Set<OWLAxiom> axioms = new HashSet<>();
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, encInd));
         axioms.add(factory.getOWLDataPropertyAssertionAxiom(measProp, encInd, measResLit));
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+
+    // see join_medicine_diagnosis.sql
+    private void processRowAsMedicineDiagnosisICD9(String[] row) {
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+        // top medicine
+        String medicineTopStr = "medicine";
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineTopStr);
+        OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
+        // medicine
+        String medicineStr = processCell(row[1]);
+        IRI medicineIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr);
+        OWLClass medicineClass = factory.getOWLClass(medicineIRI);
+        // medical conditions
+        String condStr = processCell(row[2]);
+        OWLClass condClass = findICD9Class(condStr);
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, encInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, encInd));
+        axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
         manager.addAxioms(ontology, axioms);
     }
 
@@ -375,12 +397,11 @@ public class CSV2OWLConverter {
         // get class hierarchy
         System.out.println("Adding class hierarchy");
         Set<OWLSubClassOfAxiom> classAxioms = new HashSet<>();
-        Set<OWLClass> cls = new HashSet<>();
+        Set<OWLClass> cls = icd9Ontology.getClassesInSignature();
         for (OWLAxiom axiom : icd9Ontology.getAxioms()) {
             if (axiom instanceof OWLSubClassOfAxiom) {
                 OWLSubClassOfAxiom clAxiom = (OWLSubClassOfAxiom) axiom;
                 classAxioms.add(clAxiom);
-                cls.addAll(clAxiom.getClassesInSignature());
             }
         }
         System.out.println("Class axioms are added: " + classAxioms.size());
@@ -398,6 +419,13 @@ public class CSV2OWLConverter {
         System.out.println("Annotations are added: " + labelAnnots.size());
         manager.addAxioms(ontology, classAxioms);
         manager.addAxioms(ontology, labelAnnots);
+        // create mapping
+        icd9Map = new HashMap<>();
+        System.out.println("Creating ICD9 code-class mappings");
+        for (OWLClass cl : cls) {
+            String clCode = cl.getIRI().toString().replace("http://purl.bioontology.org/ontology/ICD9CM/", "");
+            icd9Map.put(clCode, cl);
+        }
     }
 
 
