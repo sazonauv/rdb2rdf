@@ -19,6 +19,9 @@ public class CSV2OWLConverter {
     private static final String ENTITY_DELIMITER = "-";
     private static final String CSV_DELIMITER = ",";
 
+    private static final String TOP_MEDICINE = "medicine";
+    private static final String IND_SUFFIX = "_ind";
+
 
     private OWLOntologyManager manager;
     private OWLOntology ontology;
@@ -33,6 +36,16 @@ public class CSV2OWLConverter {
         manager = OWLManager.createOWLOntologyManager();
         ontology = manager.createOntology(iri);
         factory = manager.getOWLDataFactory();
+    }
+
+
+    public static void main(String args[])
+            throws OWLOntologyCreationException,
+            IOException, OWLOntologyStorageException {
+        CSV2OWLConverter converter = new CSV2OWLConverter();
+        converter.addICD9Ontology(new File(args[2]));
+//        converter.addICD9Classes(new File(args[2]));
+        converter.createOntology(new File(args[0]), new File(args[1]));
     }
 
 
@@ -56,9 +69,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsMedicineDiagnosisICD9(row);
-//                    processRowAsPopulationDiagnosisICD9PatientID(row);
-//                    processRowAsVitalsDiagnosisICD9(row);
+                    processRowAsMedicineDiagnosisICD9Rich(row);
                 }
             }
         } catch (Exception e) {
@@ -194,8 +205,7 @@ public class CSV2OWLConverter {
         IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
         OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
         // top medicine
-        String medicineTopStr = "medicine";
-        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineTopStr);
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_MEDICINE);
         OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
         // medicine
         String medicineStr = processCell(row[1]);
@@ -209,6 +219,46 @@ public class CSV2OWLConverter {
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, encInd));
         axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, encInd));
         axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+    // see join_medicine_diagnosis.sql
+    private void processRowAsMedicineDiagnosisICD9Rich(String[] row) {
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+
+        // top medicine
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_MEDICINE);
+        OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
+
+        // medicine
+        String medicineStr = processCell(row[1]);
+        IRI medicineIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr);
+        OWLClass medicineClass = factory.getOWLClass(medicineIRI);
+        IRI medicineIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr + IND_SUFFIX);
+        OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineIndIRI);
+        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribed");
+        OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
+
+        // diagnoses
+        String condStr = processCell(row[2]);
+        OWLClass condClass = findICD9Class(condStr);
+        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
+        OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
+        IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+        OWLObjectProperty diagnosedProp = factory.getOWLObjectProperty(diagnosedIRI);
+
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
+        axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedProp, encInd, condInd));
+
         manager.addAxioms(ontology, axioms);
     }
 
@@ -381,14 +431,12 @@ public class CSV2OWLConverter {
 
 
 
-    public static void main(String args[])
-            throws OWLOntologyCreationException,
-            IOException, OWLOntologyStorageException {
-        CSV2OWLConverter converter = new CSV2OWLConverter();
-        converter.addICD9Ontology(new File(args[2]));
-        converter.createOntology(new File(args[0]), new File(args[1]));
+    private void addICD9Classes(File file) throws OWLOntologyCreationException {
+        System.out.println("Loading ICD9 terminology");
+        OWLOntology icd9Ontology = manager.loadOntologyFromOntologyDocument(file);
+        // adding annotations
+        addAnnotations(icd9Ontology);
     }
-
 
 
     private void addICD9Ontology(File file) throws OWLOntologyCreationException {
@@ -397,16 +445,23 @@ public class CSV2OWLConverter {
         // get class hierarchy
         System.out.println("Adding class hierarchy");
         Set<OWLSubClassOfAxiom> classAxioms = new HashSet<>();
-        Set<OWLClass> cls = icd9Ontology.getClassesInSignature();
         for (OWLAxiom axiom : icd9Ontology.getAxioms()) {
             if (axiom instanceof OWLSubClassOfAxiom) {
                 OWLSubClassOfAxiom clAxiom = (OWLSubClassOfAxiom) axiom;
                 classAxioms.add(clAxiom);
             }
         }
+        manager.addAxioms(ontology, classAxioms);
         System.out.println("Class axioms are added: " + classAxioms.size());
+        // adding annotations
+        addAnnotations(icd9Ontology);
+    }
+
+
+    private void addAnnotations(OWLOntology icd9Ontology) {
         // get annotations
         System.out.println("Adding annotations");
+        Set<OWLClass> cls = icd9Ontology.getClassesInSignature();
         Set<OWLAnnotationAssertionAxiom> labelAnnots = new HashSet<>();
         for (OWLClass cl : cls) {
             Set<OWLAnnotationAssertionAxiom> annots = icd9Ontology.getAnnotationAssertionAxioms(cl.getIRI());
@@ -417,7 +472,6 @@ public class CSV2OWLConverter {
             }
         }
         System.out.println("Annotations are added: " + labelAnnots.size());
-        manager.addAxioms(ontology, classAxioms);
         manager.addAxioms(ontology, labelAnnots);
         // create mapping
         icd9Map = new HashMap<>();
