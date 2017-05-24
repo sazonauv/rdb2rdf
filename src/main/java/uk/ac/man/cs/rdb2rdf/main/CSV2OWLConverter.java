@@ -43,8 +43,8 @@ public class CSV2OWLConverter {
             throws OWLOntologyCreationException,
             IOException, OWLOntologyStorageException {
         CSV2OWLConverter converter = new CSV2OWLConverter();
-        converter.addICD9Ontology(new File(args[2]));
-//        converter.addICD9Classes(new File(args[2]));
+//        converter.addICD9Ontology(new File(args[2]));
+        converter.addICD9Classes(new File(args[2]));
         converter.createOntology(new File(args[0]), new File(args[1]));
     }
 
@@ -69,7 +69,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsMedicineDiagnosisICD9Rich(row);
+                    processRowAsMedicineDiagnosisICD9DemographicsRich(row);
                 }
             }
         } catch (Exception e) {
@@ -262,6 +262,101 @@ public class CSV2OWLConverter {
         manager.addAxioms(ontology, axioms);
     }
 
+
+    // see join_medicine_diagnosis_demographics.sql
+    private void processRowAsMedicineDiagnosisICD9DemographicsRich(String[] row) {
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+
+        // top medicine
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_MEDICINE);
+        OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
+
+        // medicine
+        String medicineStr = processCell(row[1]);
+        IRI medicineIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr);
+        OWLClass medicineClass = factory.getOWLClass(medicineIRI);
+        IRI medicineIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr + IND_SUFFIX);
+        OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineIndIRI);
+        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribed");
+        OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
+
+        // diagnoses
+        String condStr = processCell(row[2]);
+        OWLClass condClass = findICD9Class(condStr);
+        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
+        OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
+        IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+        OWLObjectProperty diagnosedProp = factory.getOWLObjectProperty(diagnosedIRI);
+
+        // demographics
+        // age
+        String ageStr = processCell(row[3]);
+        OWLClass ageClass = getAgeClass(ageStr);
+        // gender
+        String genderStr = processCell(row[4]);
+        IRI genderIRI = IRI.create(IRI_NAME + IRI_DELIMITER + genderStr);
+        OWLClass genderClass = factory.getOWLClass(genderIRI);
+        // race
+        String raceStr = processCell(row[5]);
+        IRI raceIRI = IRI.create(IRI_NAME + IRI_DELIMITER + raceStr);
+        OWLClass raceClass = factory.getOWLClass(raceIRI);
+
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
+        axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedProp, encInd, condInd));
+        // demographics
+        axioms.add(factory.getOWLClassAssertionAxiom(genderClass, encInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(raceClass, encInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(ageClass, encInd));
+
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+    private OWLClass getAgeClass(String ageStr) {
+        int age;
+        try {
+            // years
+            age = Integer.parseInt(ageStr);
+        } catch (NumberFormatException e) {
+            // months
+            age = (int) Math.round(Double.parseDouble(ageStr)/12);
+        }
+        // find a range
+        String ageRangeStr = "Age";
+        if (age <= 10) {
+            ageRangeStr += "<=10";
+        } else if (age <= 20) {
+            ageRangeStr += "(10-20]";
+        } else if (age <= 30) {
+            ageRangeStr += "(20-30]";
+        } else if (age <= 40) {
+            ageRangeStr += "(30-40]";
+        } else if (age <= 50) {
+            ageRangeStr += "(40-50]";
+        } else if (age <= 60) {
+            ageRangeStr += "(50-60]";
+        } else if (age <= 70) {
+            ageRangeStr += "(60-70]";
+        } else if (age <= 80) {
+            ageRangeStr += "(70-80]";
+        } else if (age <= 90) {
+            ageRangeStr += "(80-90]";
+        } else if (age <= 100) {
+            ageRangeStr += "(90-100]";
+        } else {
+            ageRangeStr += ">100";
+        }
+        IRI ageRangeIRI = IRI.create(IRI_NAME + IRI_DELIMITER + ageRangeStr);
+        return factory.getOWLClass(ageRangeIRI);
+    }
 
 
     // see join_population_diagnosis.sql
