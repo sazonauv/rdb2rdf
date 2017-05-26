@@ -288,8 +288,15 @@ public class CSV2OWLConverter {
         OWLClass condClass = findICD9Class(condStr);
         IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
         OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
-        IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
-        OWLObjectProperty diagnosedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        // determine whether it is a diagnosis or procedure
+        OWLObjectProperty diagnosedPassedProp;
+        if (isDiagnosis(condStr)) {
+            IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+            diagnosedPassedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        } else {
+            IRI passedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
+            diagnosedPassedProp = factory.getOWLObjectProperty(passedIRI);
+        }
 
         // demographics
         // age
@@ -310,13 +317,27 @@ public class CSV2OWLConverter {
         axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
         axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
-        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedProp, encInd, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedPassedProp, encInd, condInd));
         // demographics
         axioms.add(factory.getOWLClassAssertionAxiom(genderClass, encInd));
         axioms.add(factory.getOWLClassAssertionAxiom(raceClass, encInd));
         axioms.add(factory.getOWLClassAssertionAxiom(ageClass, encInd));
 
         manager.addAxioms(ontology, axioms);
+    }
+
+
+    private boolean isDiagnosis(String condStr) {
+        if (condStr.indexOf("E") > -1 || condStr.indexOf("V") > -1) {
+            return false;
+        }
+        if (condStr.indexOf("-") == 3 || condStr.indexOf(".") == 3) {
+            return true;
+        }
+        if (condStr.indexOf("-") == -1 && condStr.indexOf(".") == -1 && condStr.length() == 3) {
+            return true;
+        }
+        return false;
     }
 
 
@@ -576,6 +597,7 @@ public class CSV2OWLConverter {
             icd9Map.put(clCode, cl);
         }
     }
+
 
 
 }
