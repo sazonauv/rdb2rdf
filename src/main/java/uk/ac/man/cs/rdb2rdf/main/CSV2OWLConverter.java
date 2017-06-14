@@ -43,8 +43,8 @@ public class CSV2OWLConverter {
             throws OWLOntologyCreationException,
             IOException, OWLOntologyStorageException {
         CSV2OWLConverter converter = new CSV2OWLConverter();
-//        converter.addICD9Ontology(new File(args[2]));
-        converter.addICD9Classes(new File(args[2]));
+        converter.addICD9Ontology(new File(args[2]));
+//        converter.addICD9Classes(new File(args[2]));
         converter.createOntology(new File(args[0]), new File(args[1]));
     }
 
@@ -69,7 +69,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsMedicineDiagnosisICD9DemographicsRich(row);
+                    processRowAsDiagnosisICD9Rich(row);
                 }
             }
         } catch (Exception e) {
@@ -263,6 +263,42 @@ public class CSV2OWLConverter {
     }
 
 
+    // see diagnosis.sql
+    private void processRowAsDiagnosisICD9Rich(String[] row) {
+        // encounter
+        String encStr = processCell(row[1]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+
+        // diagnoses
+        String condStr = processCell(row[2]);
+        OWLClass condClass = findICD9Class(condStr);
+        if (condClass == null) {
+            return;
+        }
+        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
+        OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
+        // determine whether it is a diagnosis or procedure
+        OWLObjectProperty diagnosedExperiencedProp;
+        if (isDiagnosis(condStr)) {
+            IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        } else {
+            IRI experiencedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(experiencedIRI);
+        }
+
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedExperiencedProp, encInd, condInd));
+
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+
+
     // see join_medicine_diagnosis_demographics.sql
     private void processRowAsMedicineDiagnosisICD9DemographicsRich(String[] row) {
         // encounter
@@ -286,16 +322,19 @@ public class CSV2OWLConverter {
         // diagnoses
         String condStr = processCell(row[2]);
         OWLClass condClass = findICD9Class(condStr);
+        if (condClass == null) {
+            return;
+        }
         IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
         OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
         // determine whether it is a diagnosis or procedure
-        OWLObjectProperty diagnosedPassedProp;
+        OWLObjectProperty diagnosedExperiencedProp;
         if (isDiagnosis(condStr)) {
             IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
-            diagnosedPassedProp = factory.getOWLObjectProperty(diagnosedIRI);
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(diagnosedIRI);
         } else {
-            IRI passedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
-            diagnosedPassedProp = factory.getOWLObjectProperty(passedIRI);
+            IRI experiencedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(experiencedIRI);
         }
 
         // demographics
@@ -317,7 +356,7 @@ public class CSV2OWLConverter {
         axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
         axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
-        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedPassedProp, encInd, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedExperiencedProp, encInd, condInd));
         // demographics
         axioms.add(factory.getOWLClassAssertionAxiom(genderClass, encInd));
         axioms.add(factory.getOWLClassAssertionAxiom(raceClass, encInd));
