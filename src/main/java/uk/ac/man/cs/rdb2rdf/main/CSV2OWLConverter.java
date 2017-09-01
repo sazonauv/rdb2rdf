@@ -69,7 +69,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsDiagnosisICD9Rich(row);
+                    processRowAsMedicineDiagnosisICD9Rich(row);
                 }
             }
         } catch (Exception e) {
@@ -243,13 +243,25 @@ public class CSV2OWLConverter {
         IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribed");
         OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
 
+
         // diagnoses
         String condStr = processCell(row[2]);
         OWLClass condClass = findICD9Class(condStr);
+        if (condClass == null) {
+            return;
+        }
         IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
         OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
-        IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
-        OWLObjectProperty diagnosedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        // determine whether it is a diagnosis or procedure
+        OWLObjectProperty diagnosedExperiencedProp;
+        if (isDiagnosis(condStr)) {
+            IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        } else {
+            IRI experiencedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(experiencedIRI);
+        }
+
 
         // axioms
         Set<OWLAxiom> axioms = new HashSet<>();
@@ -257,7 +269,7 @@ public class CSV2OWLConverter {
         axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
         axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
-        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedProp, encInd, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedExperiencedProp, encInd, condInd));
 
         manager.addAxioms(ontology, axioms);
     }
