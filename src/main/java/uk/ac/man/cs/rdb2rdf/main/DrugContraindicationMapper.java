@@ -4,16 +4,13 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.IND_SUFFIX;
 import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.IRI_DELIMITER;
 import static uk.ac.man.cs.rdb2rdf.main.CSVReader.processCell;
 
