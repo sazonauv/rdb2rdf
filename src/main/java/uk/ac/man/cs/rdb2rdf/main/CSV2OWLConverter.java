@@ -9,18 +9,20 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static uk.ac.man.cs.rdb2rdf.main.CSV.DELIMITER;
+import static uk.ac.man.cs.rdb2rdf.main.CSVReader.processCell;
+
 /**
  * Created by slava on 01/03/17.
  */
 public class CSV2OWLConverter {
 
     private static final String IRI_NAME = "http://owl.cs.manchester.ac.uk/healthefacts";
-    private static final String IRI_DELIMITER = "#";
-    private static final String ENTITY_DELIMITER = "-";
-    private static final String CSV_DELIMITER = ",";
 
-    private static final String TOP_MEDICINE = "medicine";
-    private static final String IND_SUFFIX = "_ind";
+    public static final String IRI_DELIMITER = "#";
+    public static final String ENTITY_DELIMITER = "-";
+    public static final String TOP_MEDICINE = "medicine";
+    public static final String IND_SUFFIX = "_ind";
 
 
     private OWLOntologyManager manager;
@@ -63,7 +65,7 @@ public class CSV2OWLConverter {
                 int i = 0;
                 while ((line = reader.readLine()) != null) {
                     // get all tokens in the line
-                    String[] row = line.split(CSV_DELIMITER);
+                    String[] row = line.split(DELIMITER);
                     // debug
                     i++;
                     if (i % 1e4 == 0) {
@@ -420,14 +422,7 @@ public class CSV2OWLConverter {
 
 
 
-    private static String processCell(String str) {
-        return str.replace(" ", "").replace("\"", "")
-                .replace("\'", "").replace("\n", "")
-                .replace("\t", "").replace("\r", "")
-                .replace("\\", ENTITY_DELIMITER)
-                .replace("/", ENTITY_DELIMITER)
-                .replace("%", "").replace("(", "").replace(")", "");
-    }
+
 
 
 
