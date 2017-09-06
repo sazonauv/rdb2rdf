@@ -591,6 +591,64 @@ public class CSV2OWLConverter {
 
 
 
+    // see orders.sql
+    private void processRowAsOrders(String[] row) {
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+
+        // diagnoses
+        String condStr = processCell(row[1]);
+        OWLClass condClass = findICD9Class(condStr);
+        if (condClass == null) {
+            return;
+        }
+        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
+        OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
+        // determine whether it is a diagnosis or procedure
+        OWLObjectProperty diagnosedExperiencedProp;
+        if (isDiagnosis(condStr)) {
+            IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        } else {
+            IRI experiencedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(experiencedIRI);
+        }
+
+
+
+        // top medicine
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_MEDICINE);
+        OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
+
+        // medicine
+        String medicineStr = processCell(row[1]);
+        IRI medicineIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr);
+        OWLClass medicineClass = factory.getOWLClass(medicineIRI);
+        IRI medicineIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr + IND_SUFFIX);
+        OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineIndIRI);
+        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribed");
+        OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
+
+
+
+
+
+        // axioms
+        Set<OWLAxiom> axioms = new HashSet<>();
+        axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
+        axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedExperiencedProp, encInd, condInd));
+
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+
+
 
 
     private void addICD9Classes(File file) throws OWLOntologyCreationException {
