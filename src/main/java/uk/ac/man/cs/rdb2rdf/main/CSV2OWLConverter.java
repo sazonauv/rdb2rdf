@@ -21,7 +21,7 @@ public class CSV2OWLConverter {
 
     public static final String IRI_DELIMITER = "#";
     public static final String ENTITY_DELIMITER = "-";
-    public static final String TOP_MEDICINE = "medicine";
+    public static final String TOP_MEDICINE = "MEDICINE";
     public static final String IND_SUFFIX = "_ind";
 
 
