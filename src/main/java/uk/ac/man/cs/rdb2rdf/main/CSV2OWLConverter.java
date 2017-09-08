@@ -71,7 +71,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         System.out.println(i + " lines are processed");
                     }
-                    processRowAsMedicineDiagnosisICD9Rich(row);
+                    processRowAsMedicineDiagnosisICD9(row);
                 }
             }
         } catch (Exception e) {
@@ -604,7 +604,7 @@ public class CSV2OWLConverter {
         if (condClass == null) {
             return;
         }
-        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
+        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr);
         OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
         // determine whether it is a diagnosis or procedure
         OWLObjectProperty diagnosedExperiencedProp;
@@ -623,16 +623,30 @@ public class CSV2OWLConverter {
         OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
 
         // medicine
-        String medicineStr = processCell(row[1]);
+        String medicineStr = processCell(row[5]);
+        String startTimeStr = processCell(row[7]);
         IRI medicineIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr);
         OWLClass medicineClass = factory.getOWLClass(medicineIRI);
-        IRI medicineIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineStr + IND_SUFFIX);
+        IRI medicineIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr
+                + ENTITY_DELIMITER + medicineStr
+                + ENTITY_DELIMITER + startTimeStr);
         OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineIndIRI);
-        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribed");
+        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "orders");
         OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
 
+        String strengthStr = processCell(row[6]);
+        IRI strengthIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "strength");
+        OWLDataProperty strengthProp = factory.getOWLDataProperty(strengthIRI);
 
+        IRI startIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "start");
+        OWLDataProperty startProp = factory.getOWLDataProperty(startIRI);
 
+        String endTimeStr = processCell(row[8]);
+        IRI endIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "end");
+        OWLDataProperty endProp = factory.getOWLDataProperty(endIRI);
+
+        IRI ndcIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "ndc");
+        OWLDataProperty ndcProp = factory.getOWLDataProperty(ndcIRI);
 
 
         // axioms
@@ -642,6 +656,11 @@ public class CSV2OWLConverter {
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
         axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
         axioms.add(factory.getOWLObjectPropertyAssertionAxiom(diagnosedExperiencedProp, encInd, condInd));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(strengthProp, medicineInd, strengthStr));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(startProp, medicineInd, startTimeStr));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(endProp, medicineInd, endTimeStr));
+        axioms.add(factory.getOWLDataPropertyAssertionAxiom(ndcProp, medicineInd, medicineStr));
+
 
         manager.addAxioms(ontology, axioms);
     }
