@@ -11,9 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.IND_SUFFIX;
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.IRI_DELIMITER;
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.TOP_MEDICINE;
+import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.*;
 import static uk.ac.man.cs.rdb2rdf.main.CSVReader.processCell;
 
 
@@ -94,16 +92,6 @@ public class DrugContraindicationMapper {
 
     }
 
-    public static void main(String args[])
-            throws Exception {
-        DrugContraindicationMapper converter = new DrugContraindicationMapper(
-                new File(args[0]), new File(args[1]), new File(args[2]));
-        converter.addICD9Ontology(new File(args[3]));
-        converter.computeClassHierarchy();
-        converter.createOntology(new File(args[4]));
-    }
-
-
 
     private void addICD9Ontology(File file) throws OWLOntologyCreationException {
         Out.p("Loading ICD9 terminology");
@@ -167,7 +155,10 @@ public class DrugContraindicationMapper {
         IRI givenContrClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + GIVEN_CONTRAINDICATION);
         OWLClass givenContrClass = factory.getOWLClass(givenContrClassIRI);
         IRI inferredContrClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + INFERRED_CONTRAINDICATION);
-        OWLClass inferredContrClassClass = factory.getOWLClass(inferredContrClassIRI);
+        OWLClass inferredContrClass = factory.getOWLClass(inferredContrClassIRI);
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(givenContrClass, topContrClass));
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(inferredContrClass, topContrClass));
+
         // properties
         IRI hasDrugIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "drug");
         OWLObjectProperty hasDrugProp = factory.getOWLObjectProperty(hasDrugIRI);
@@ -208,7 +199,8 @@ public class DrugContraindicationMapper {
                 }
                 cls1.add(condClass);
                 Set<OWLClass> condClasses = new HashSet<>(
-                        reasoner.getSubClasses(condClass, false).getFlattened());
+//                        reasoner.getSubClasses(condClass, false).getFlattened()
+                );
                 condClasses.add(condClass);
 
 
@@ -220,11 +212,21 @@ public class DrugContraindicationMapper {
 
                     // axioms
                     manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(subCl, condInd));
-                    manager.addAxiom(ontology, factory.getOWLObjectPropertyAssertionAxiom(
-                            hasDrugProp, condInd, drugInd));
 
-                    if (!subCl.equals(condClass)) {
-                        //
+                    IRI contrIRI = IRI.create(IRI_NAME + IRI_DELIMITER +
+                            subCl.getIRI().getShortForm() + ENTITY_DELIMITER + drug2code.get(drug));
+                    OWLNamedIndividual contrInd = factory.getOWLNamedIndividual(contrIRI);
+
+                    manager.addAxiom(ontology, factory.getOWLObjectPropertyAssertionAxiom(
+                            hasDrugProp, contrInd, drugInd));
+                    manager.addAxiom(ontology, factory.getOWLObjectPropertyAssertionAxiom(
+                            hasConditionProp, contrInd, condInd));
+
+
+                    if (subCl.equals(condClass)) {
+                        manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(givenContrClass, contrInd));
+                    } else {
+                        manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(inferredContrClass, contrInd));
                     }
                 }
             }
@@ -250,6 +252,14 @@ public class DrugContraindicationMapper {
     }
 
 
+    public static void main(String args[])
+            throws Exception {
+        DrugContraindicationMapper converter = new DrugContraindicationMapper(
+                new File(args[0]), new File(args[1]), new File(args[2]));
+        converter.addICD9Ontology(new File(args[3]));
+        converter.computeClassHierarchy();
+        converter.createOntology(new File(args[4]));
+    }
 
 
 }
