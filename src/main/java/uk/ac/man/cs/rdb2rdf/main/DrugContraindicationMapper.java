@@ -4,6 +4,7 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.semanticweb.owlapi.reasoner.InferenceType;
 import org.semanticweb.owlapi.reasoner.OWLReasoner;
+import org.semarglproject.vocab.OWL;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -31,13 +32,12 @@ public class DrugContraindicationMapper {
     private OWLDataFactory factory;
     private OWLReasoner reasoner;
 
-    private Map<String, Set<String>> drug2cond;
-
     private Map<String, OWLClass> icd9Map;
 
-    private Map<String, String> drug2cat;
+    private Map<String, Contraindication> drug2ContrMap;
 
-    private Map<String, String> drug2code;
+
+
 
 
     public DrugContraindicationMapper(File drug2cond, File cond2ICD, File drug2cat)
@@ -66,28 +66,28 @@ public class DrugContraindicationMapper {
         }
 
         // map drugs to ICD codes
-        final List<String[]> drug2condRows = CSVReader.read(drug2condFile, true);
-        drug2cond = new HashMap<>();
-        drug2code = new HashMap<>();
+        List<String[]> drug2condRows = CSVReader.read(drug2condFile, true);
+        drug2ContrMap = new HashMap<>();
         for (String[] row : drug2condRows) {
-            String drugCode = processCell(row[1]);
-            String drugID = processCell(row[2]);
-            String condID = processCell(row[3]);
-            if (cond2ICDMap.containsKey(condID)) {
-                drug2cond.put(drugID, cond2ICDMap.get(condID));
+            Contraindication contr = new Contraindication();
+            contr.drugCode = processCell(row[1]);
+            contr.drug = processCell(row[2]);
+            String conditionId = processCell(row[3]);
+            if (cond2ICDMap.containsKey(conditionId)) {
+                contr.conditions = cond2ICDMap.get(conditionId);
             } else {
-                drug2cond.put(drugID, new HashSet<>());
+                contr.conditions = new HashSet<>();
             }
-            drug2code.put(drugID, drugCode);
+            contr.severity = processCell(row[7]);
+            drug2ContrMap.put(contr.drugCode, contr);
         }
 
         // map drugs to categories
         final List<String[]> drug2catRows = CSVReader.read(drug2catFile, true);
-        drug2cat = new HashMap<>();
         for (String[] row : drug2catRows) {
-            String drugID = processCell(row[1]);
-            String catID = processCell(row[3]);
-            drug2cat.put(drugID, catID);
+            String drugCode = processCell(row[0]);
+            Contraindication contr = drug2ContrMap.get(drugCode);
+            contr.drugCategory = processCell(row[3]);
         }
 
     }
@@ -171,6 +171,7 @@ public class DrugContraindicationMapper {
 
         Set<OWLClass> cls1 = new HashSet<>();
         Set<OWLClass> cls2 = new HashSet<>();
+        Map<OWLNamedIndividual, OWLClass> contrCondMap = new HashMap<>();
         for (String drug : drug2cond.keySet()) {
 
             // drug
@@ -199,10 +200,9 @@ public class DrugContraindicationMapper {
                 }
                 cls1.add(condClass);
                 Set<OWLClass> condClasses = new HashSet<>(
-//                        reasoner.getSubClasses(condClass, false).getFlattened()
+                        reasoner.getSubClasses(condClass, false).getFlattened()
                 );
                 condClasses.add(condClass);
-
 
                 for (OWLClass subCl : condClasses) {
                     cls2.add(subCl);
@@ -222,18 +222,24 @@ public class DrugContraindicationMapper {
                     manager.addAxiom(ontology, factory.getOWLObjectPropertyAssertionAxiom(
                             hasConditionProp, contrInd, condInd));
 
+                    manager.addAxiom(ontology, factory.getOWLDataPropertyAssertionAxiom(
+                            hasSeverityProp, contrInd, severityStr));
 
-                    if (subCl.equals(condClass)) {
-                        manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(givenContrClass, contrInd));
-                    } else {
-                        manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(inferredContrClass, contrInd));
-                    }
+                    contrCondMap.put(contrInd, subCl);
                 }
             }
         }
 
-        cls2.removeAll(cls1);
-        Out.p(cls2.size() + " out of " + (cls1.size()+cls2.size())
+        for (OWLNamedIndividual contrInd : contrCondMap.keySet()) {
+            OWLClass cl = contrCondMap.get(contrInd);
+            if (cls1.contains(cl)) {
+                manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(givenContrClass, contrInd));
+            } else {
+                manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(inferredContrClass, contrInd));
+            }
+        }
+
+        Out.p((cls2.size() - cls1.size()) + " out of " + cls2.size()
                 + "  conditions are inferred to have contraindications");
 
         // save the ontology
