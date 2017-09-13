@@ -4,7 +4,6 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.semanticweb.owlapi.reasoner.InferenceType;
 import org.semanticweb.owlapi.reasoner.OWLReasoner;
-import org.semarglproject.vocab.OWL;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -71,14 +70,23 @@ public class DrugContraindicationMapper {
         for (String[] row : drug2condRows) {
             Contraindication contr = new Contraindication();
             contr.drugCode = processCell(row[1]);
-            contr.drug = processCell(row[2]);
+            contr.drugName = processCell(row[2]);
             String conditionId = processCell(row[3]);
             if (cond2ICDMap.containsKey(conditionId)) {
                 contr.conditions = cond2ICDMap.get(conditionId);
             } else {
                 contr.conditions = new HashSet<>();
             }
-            contr.severity = processCell(row[7]);
+            String severity = processCell(row[7]);
+            if (severity.contains("Minimal")) {
+                contr.severity = "Minimal";
+            } else if (severity.contains("Moderate")) {
+                contr.severity = "Moderate";
+            } else if (severity.contains("High")) {
+                contr.severity = "High";
+            } else {
+                contr.severity = severity;
+            }
             drug2ContrMap.put(contr.drugCode, contr);
         }
 
@@ -87,7 +95,9 @@ public class DrugContraindicationMapper {
         for (String[] row : drug2catRows) {
             String drugCode = processCell(row[0]);
             Contraindication contr = drug2ContrMap.get(drugCode);
-            contr.drugCategory = processCell(row[3]);
+            if (contr != null) {
+                contr.drugCategory = processCell(row[3]);
+            }
         }
 
     }
@@ -164,35 +174,38 @@ public class DrugContraindicationMapper {
         OWLObjectProperty hasDrugProp = factory.getOWLObjectProperty(hasDrugIRI);
         IRI hasConditionIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "condition");
         OWLObjectProperty hasConditionProp = factory.getOWLObjectProperty(hasConditionIRI);
-        IRI hasSeverityIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "severity");
+        IRI hasSeverityIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "plausibility");
         OWLDataProperty hasSeverityProp = factory.getOWLDataProperty(hasSeverityIRI);
-        IRI hasNDCIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "NDC");
-        OWLDataProperty hasNDCProp = factory.getOWLDataProperty(hasNDCIRI);
+        OWLAnnotationProperty labelProp = factory.getRDFSLabel();
+
 
         Set<OWLClass> cls1 = new HashSet<>();
         Set<OWLClass> cls2 = new HashSet<>();
         Map<OWLNamedIndividual, OWLClass> contrCondMap = new HashMap<>();
-        for (String drug : drug2cond.keySet()) {
+        for (String drugCode : drug2ContrMap.keySet()) {
 
-            // drug
-            IRI drugIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + drug);
+            Contraindication contr = drug2ContrMap.get(drugCode);
+
+            // drugName
+            IRI drugIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + drugCode);
             OWLNamedIndividual drugInd = factory.getOWLNamedIndividual(drugIndIRI);
             manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(topDrugClass, drugInd));
 
-            // drug code
+            // drugName code
             manager.addAxiom(ontology,
-                    factory.getOWLDataPropertyAssertionAxiom(hasNDCProp, drugInd, drug2code.get(drug)));
+                    factory.getOWLAnnotationAssertionAxiom(
+                            labelProp, drugInd.getIRI(), factory.getOWLLiteral(contr.drugName)));
 
             // categories
-            if (drug2cat.containsKey(drug)) {
-                IRI drugCategoryIRI = IRI.create(IRI_NAME + IRI_DELIMITER + drug2cat.get(drug));
+            if (contr.drugCategory != null) {
+                IRI drugCategoryIRI = IRI.create(IRI_NAME + IRI_DELIMITER + contr.drugCategory);
                 OWLClass drugCategoryClass = factory.getOWLClass(drugCategoryIRI);
                 manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(drugCategoryClass, topDrugClass));
                 manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(drugCategoryClass, drugInd));
             }
 
             // conditions
-            Set<String> condIDs = drug2cond.get(drug);
+            Set<String> condIDs = contr.conditions;
             for (String condID : condIDs) {
                 OWLClass condClass = findICD9Class(condID);
                 if (condClass == null) {
@@ -202,6 +215,7 @@ public class DrugContraindicationMapper {
                 Set<OWLClass> condClasses = new HashSet<>(
                         reasoner.getSubClasses(condClass, false).getFlattened()
                 );
+                condClasses.remove(factory.getOWLNothing());
                 condClasses.add(condClass);
 
                 for (OWLClass subCl : condClasses) {
@@ -214,7 +228,7 @@ public class DrugContraindicationMapper {
                     manager.addAxiom(ontology, factory.getOWLClassAssertionAxiom(subCl, condInd));
 
                     IRI contrIRI = IRI.create(IRI_NAME + IRI_DELIMITER +
-                            subCl.getIRI().getShortForm() + ENTITY_DELIMITER + drug2code.get(drug));
+                            subCl.getIRI().getShortForm() + ENTITY_DELIMITER + drugCode);
                     OWLNamedIndividual contrInd = factory.getOWLNamedIndividual(contrIRI);
 
                     manager.addAxiom(ontology, factory.getOWLObjectPropertyAssertionAxiom(
@@ -223,7 +237,21 @@ public class DrugContraindicationMapper {
                             hasConditionProp, contrInd, condInd));
 
                     manager.addAxiom(ontology, factory.getOWLDataPropertyAssertionAxiom(
-                            hasSeverityProp, contrInd, severityStr));
+                            hasSeverityProp, contrInd, contr.severity));
+
+                    // annotation
+                    Set<OWLAnnotationAssertionAxiom> condAnnots =
+                            ontology.getAnnotationAssertionAxioms(subCl.getIRI());
+                    OWLLiteral condName = null;
+                    for (OWLAnnotationAssertionAxiom ann : condAnnots) {
+                        condName = ann.getValue().asLiteral().get();
+                        break;
+                    }
+                    if (condName != null) {
+                        manager.addAxiom(ontology,
+                                factory.getOWLAnnotationAssertionAxiom(
+                                        labelProp, condInd.getIRI(), condName));
+                    }
 
                     contrCondMap.put(contrInd, subCl);
                 }

@@ -7,7 +7,7 @@ import java.util.Set;
  */
 public class Contraindication {
 
-    public String drug;
+    public String drugName;
 
     public String drugCode;
 
