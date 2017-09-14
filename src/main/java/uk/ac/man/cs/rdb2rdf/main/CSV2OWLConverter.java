@@ -35,6 +35,9 @@ public class CSV2OWLConverter {
     public static final String HIGH_PLAUSIBILITY = "High";
 
 
+    public static final String TOP_PROPERTY = "domainObjectProperty";
+
+
 
 
 

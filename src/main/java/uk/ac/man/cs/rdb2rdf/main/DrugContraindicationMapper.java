@@ -221,6 +221,12 @@ public class DrugContraindicationMapper {
         OWLObjectProperty hasSeverityProp = factory.getOWLObjectProperty(hasSeverityIRI);
         OWLAnnotationProperty labelProp = factory.getRDFSLabel();
 
+        IRI topPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_PROPERTY);
+        OWLObjectProperty topProp = factory.getOWLObjectProperty(topPropIRI);
+        manager.addAxiom(ontology, factory.getOWLSubObjectPropertyOfAxiom(hasDrugProp, topProp));
+        manager.addAxiom(ontology, factory.getOWLSubObjectPropertyOfAxiom(hasConditionProp, topProp));
+        manager.addAxiom(ontology, factory.getOWLSubObjectPropertyOfAxiom(hasSeverityProp, topProp));
+
 
         OWLClassExpression onlyDrugExpr = factory.getOWLObjectAllValuesFrom(hasDrugProp, topDrugClass);
         OWLClassExpression onlyCondExpr = factory.getOWLObjectAllValuesFrom(hasConditionProp, topCondClass);
@@ -258,8 +264,13 @@ public class DrugContraindicationMapper {
                 }
 
                 // patient
+                String condName = null;
+                for (OWLAnnotationAssertionAxiom ann : ontology.getAnnotationAssertionAxioms(condClass.getIRI())) {
+                    condName = ann.getValue().asLiteral().get().getLiteral();
+                    break;
+                }
                 IRI patientIRI = IRI.create(IRI_NAME + IRI_DELIMITER
-                        + TOP_PATIENT + ENTITY_DELIMITER + condClass.getIRI().getShortForm());
+                        + TOP_PATIENT + ENTITY_DELIMITER + condName);
                 OWLClass patientClass = factory.getOWLClass(patientIRI);
                 manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(patientClass, topPatientClass));
 
