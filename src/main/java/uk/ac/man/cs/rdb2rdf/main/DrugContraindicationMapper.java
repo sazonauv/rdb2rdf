@@ -270,9 +270,11 @@ public class DrugContraindicationMapper {
                     break;
                 }
                 IRI patientIRI = IRI.create(IRI_NAME + IRI_DELIMITER
-                        + TOP_PATIENT + ENTITY_DELIMITER + condName);
+                        + TOP_PATIENT + ENTITY_DELIMITER + condClass.getIRI().getShortForm());
                 OWLClass patientClass = factory.getOWLClass(patientIRI);
                 manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(patientClass, topPatientClass));
+                manager.addAxiom(ontology, factory.getOWLAnnotationAssertionAxiom(labelProp, patientClass.getIRI(),
+                        factory.getOWLLiteral("Patient with " + condName)));
 
                 OWLClassExpression patientExpr = factory.getOWLObjectIntersectionOf(
                         topPatientClass,
