@@ -1,18 +1,16 @@
 package uk.ac.man.cs.rdb2rdf.main;
 
+import com.opencsv.CSVReader;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.semanticweb.owlapi.reasoner.InferenceType;
 import org.semanticweb.owlapi.reasoner.OWLReasoner;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
+import static uk.ac.man.cs.rdb2rdf.main.CSV.processCell;
 import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.*;
-import static uk.ac.man.cs.rdb2rdf.main.CSVReader.processCell;
 
 
 /**
@@ -20,7 +18,8 @@ import static uk.ac.man.cs.rdb2rdf.main.CSVReader.processCell;
  */
 public class DrugContraindicationMapper {
 
-    private static final String IRI_NAME = "http://owl.cs.manchester.ac.uk/contraindication";
+    private static final String IRI_NAME = //"http://owl.cs.manchester.ac.uk/contraindication";
+                                            "http://mekon/demo.owl";
     private static final String TOP_CONTRAINDICATION = "Contraindication";
     private static final String GIVEN_CONTRAINDICATION = "GivenContraindication";
     private static final String INFERRED_CONTRAINDICATION = "InferredContraindication";
@@ -40,7 +39,7 @@ public class DrugContraindicationMapper {
 
 
     public DrugContraindicationMapper(File drug2cond, File cond2ICD, File drug2cat)
-            throws OWLOntologyCreationException {
+            throws OWLOntologyCreationException, IOException {
         // create an ontology
         IRI iri = IRI.create(IRI_NAME);
         manager = OWLManager.createOWLOntologyManager();
@@ -49,10 +48,13 @@ public class DrugContraindicationMapper {
         init(drug2cond, cond2ICD, drug2cat);
     }
 
-    private void init(File drug2condFile, File cond2ICDFile, File drug2catFile) {
+    private void init(File drug2condFile, File cond2ICDFile, File drug2catFile) throws IOException {
         // map conditions to ICD
         Map<String, Set<String>> cond2ICDMap = new HashMap<>();
-        final List<String[]> cond2ICDRows = CSVReader.read(cond2ICDFile, true);
+        CSVReader reader = new CSVReader(new FileReader(cond2ICDFile));
+        List<String[]> cond2ICDRows = reader.readAll();
+        reader.close();
+        cond2ICDRows.remove(0);
         for (String[] row : cond2ICDRows) {
             String condID = processCell(row[2]);
             Set<String> codes = cond2ICDMap.get(condID);
@@ -65,7 +67,10 @@ public class DrugContraindicationMapper {
         }
 
         // map drugs to ICD codes
-        List<String[]> drug2condRows = CSVReader.read(drug2condFile, true);
+        reader = new CSVReader(new FileReader(drug2condFile));
+        List<String[]> drug2condRows = reader.readAll();
+        reader.close();
+        drug2condRows.remove(0);
         drug2ContrMap = new HashMap<>();
         for (String[] row : drug2condRows) {
             Contraindication contr = new Contraindication();
@@ -91,7 +96,10 @@ public class DrugContraindicationMapper {
         }
 
         // map drugs to categories
-        final List<String[]> drug2catRows = CSVReader.read(drug2catFile, true);
+        reader = new CSVReader(new FileReader(drug2catFile));
+        List<String[]> drug2catRows = reader.readAll();
+        reader.close();
+        drug2catRows.remove(0);
         for (String[] row : drug2catRows) {
             String drugCode = processCell(row[0]);
             Contraindication contr = drug2ContrMap.get(drugCode);
@@ -101,6 +109,14 @@ public class DrugContraindicationMapper {
         }
 
     }
+
+
+    private void addMekonOntology(File file) throws OWLOntologyCreationException {
+        Out.p("Loading Mekpon template");
+        OWLOntology mekonOntology = manager.loadOntologyFromOntologyDocument(file);
+        manager.addAxioms(ontology, mekonOntology.getAxioms());
+    }
+
 
 
     private void addICD9Ontology(File file) throws OWLOntologyCreationException {
@@ -173,6 +189,23 @@ public class DrugContraindicationMapper {
         manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(topCondClass, topClass));
         manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(topPatientClass, topClass));
 
+
+        IRI topPlausClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_PLAUSIBILITY);
+        OWLClass topPlausClass = factory.getOWLClass(topPlausClassIRI);
+        IRI lowPlausClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + LOW_PLAUSIBILITY);
+        OWLClass lowPlausClass = factory.getOWLClass(lowPlausClassIRI);
+        IRI mediumPlausClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + MEDIUM_PLAUSIBILITY);
+        OWLClass mediumPlausClass = factory.getOWLClass(mediumPlausClassIRI);
+        IRI highPlausClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + HIGH_PLAUSIBILITY);
+        OWLClass highPlausClass = factory.getOWLClass(highPlausClassIRI);
+
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(topPlausClass, topClass));
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(lowPlausClass, topPlausClass));
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(mediumPlausClass, lowPlausClass));
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(highPlausClass, mediumPlausClass));
+
+
+
         Set<OWLClass> topCondClasses = reasoner.getSubClasses(
                 factory.getOWLThing(), true).getFlattened();
         for (OWLClass cl : topCondClasses) {
@@ -184,9 +217,16 @@ public class DrugContraindicationMapper {
         OWLObjectProperty hasDrugProp = factory.getOWLObjectProperty(hasDrugIRI);
         IRI hasConditionIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "hasCondition");
         OWLObjectProperty hasConditionProp = factory.getOWLObjectProperty(hasConditionIRI);
-        IRI hasSeverityIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "hasPlausibility");
-        OWLDataProperty hasSeverityProp = factory.getOWLDataProperty(hasSeverityIRI);
+        IRI hasSeverityIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "hasContraindicationPlausibility");
+        OWLObjectProperty hasSeverityProp = factory.getOWLObjectProperty(hasSeverityIRI);
         OWLAnnotationProperty labelProp = factory.getRDFSLabel();
+
+
+        OWLClassExpression onlyDrugExpr = factory.getOWLObjectAllValuesFrom(hasDrugProp, topDrugClass);
+        OWLClassExpression onlyCondExpr = factory.getOWLObjectAllValuesFrom(hasConditionProp, topCondClass);
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(topPatientClass, onlyDrugExpr));
+        manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(topPatientClass, onlyCondExpr));
+
 
         for (String drugCode : drug2ContrMap.keySet()) {
 
@@ -222,13 +262,28 @@ public class DrugContraindicationMapper {
                         + TOP_PATIENT + ENTITY_DELIMITER + condClass.getIRI().getShortForm());
                 OWLClass patientClass = factory.getOWLClass(patientIRI);
                 manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(patientClass, topPatientClass));
+
                 OWLClassExpression patientExpr = factory.getOWLObjectIntersectionOf(
                         topPatientClass,
                         factory.getOWLObjectSomeValuesFrom(hasConditionProp, condClass));
+
                 manager.addAxiom(ontology, factory.getOWLEquivalentClassesAxiom(patientClass, patientExpr));
 
                 // implication
-                OWLClassExpression drugExpr = factory.getOWLObjectSomeValuesFrom(hasDrugProp, drugClass);
+                OWLClass plausClass = null;
+                if (contr.severity.equals("Minimal")) {
+                    plausClass = lowPlausClass;
+                } else if (contr.severity.equals("Moderate")) {
+                    plausClass = mediumPlausClass;
+                } else if (contr.severity.equals("High")) {
+                    plausClass = highPlausClass;
+                } else {
+                    System.out.println("Wrong plausibility : " + contr.severity);
+                }
+
+                OWLClassExpression plausExpr = factory.getOWLObjectIntersectionOf(drugClass,
+                        factory.getOWLObjectSomeValuesFrom(hasSeverityProp, plausClass));
+                OWLClassExpression drugExpr = factory.getOWLObjectSomeValuesFrom(hasDrugProp, plausExpr);
                 manager.addAxiom(ontology, factory.getOWLSubClassOfAxiom(patientClass, drugExpr));
 
             }
@@ -389,6 +444,8 @@ public class DrugContraindicationMapper {
         converter.computeClassHierarchy();
         converter.createMekonOntology(new File(args[4]));
     }
+
+
 
 
 }

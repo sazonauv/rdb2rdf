@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static uk.ac.man.cs.rdb2rdf.main.CSV.DELIMITER;
-import static uk.ac.man.cs.rdb2rdf.main.CSVReader.processCell;
+import static uk.ac.man.cs.rdb2rdf.main.CSV.processCell;
 
 /**
  * Created by slava on 01/03/17.
@@ -23,10 +23,18 @@ public class CSV2OWLConverter {
     public static final String ENTITY_DELIMITER = "-";
     public static final String IND_SUFFIX = "_ind";
 
+    public static final String TOP_CLASS = "DomainConcept";
+
     public static final String TOP_MEDICINE = "Drug";
     public static final String TOP_DISEASE = "Disease";
     public static final String TOP_PATIENT = "Patient";
-    public static final String TOP_CLASS = "Slava";
+
+    public static final String TOP_PLAUSIBILITY = "Plausibility";
+    public static final String LOW_PLAUSIBILITY = "Low";
+    public static final String MEDIUM_PLAUSIBILITY = "Medium";
+    public static final String HIGH_PLAUSIBILITY = "High";
+
+
 
 
 
@@ -74,7 +82,7 @@ public class CSV2OWLConverter {
                     // debug
                     i++;
                     if (i % 1e4 == 0) {
-                        System.out.println(i + " lines are processed");
+                        Out.p(i + " lines are processed");
                     }
                     processRowAsMedicineDiagnosisICD9(row);
                 }
@@ -676,7 +684,7 @@ public class CSV2OWLConverter {
 
 
     private void addICD9Classes(File file) throws OWLOntologyCreationException {
-        System.out.println("Loading ICD9 terminology");
+        Out.p("Loading ICD9 terminology");
         OWLOntology icd9Ontology = manager.loadOntologyFromOntologyDocument(file);
         // adding annotations
         addAnnotations(icd9Ontology);
@@ -684,10 +692,10 @@ public class CSV2OWLConverter {
 
 
     private void addICD9Ontology(File file) throws OWLOntologyCreationException {
-        System.out.println("Loading ICD9 terminology");
+        Out.p("Loading ICD9 terminology");
         OWLOntology icd9Ontology = manager.loadOntologyFromOntologyDocument(file);
         // get class hierarchy
-        System.out.println("Adding class hierarchy");
+        Out.p("Adding class hierarchy");
         Set<OWLSubClassOfAxiom> classAxioms = new HashSet<>();
         for (OWLAxiom axiom : icd9Ontology.getAxioms()) {
             if (axiom instanceof OWLSubClassOfAxiom) {
@@ -696,7 +704,7 @@ public class CSV2OWLConverter {
             }
         }
         manager.addAxioms(ontology, classAxioms);
-        System.out.println("Class axioms are added: " + classAxioms.size());
+        Out.p("Class axioms are added: " + classAxioms.size());
         // adding annotations
         addAnnotations(icd9Ontology);
     }
@@ -704,7 +712,7 @@ public class CSV2OWLConverter {
 
     private void addAnnotations(OWLOntology icd9Ontology) {
         // get annotations
-        System.out.println("Adding annotations");
+        Out.p("Adding annotations");
         Set<OWLClass> cls = icd9Ontology.getClassesInSignature();
         Set<OWLAnnotationAssertionAxiom> labelAnnots = new HashSet<>();
         for (OWLClass cl : cls) {
@@ -715,16 +723,21 @@ public class CSV2OWLConverter {
                 }
             }
         }
-        System.out.println("Annotations are added: " + labelAnnots.size());
+        Out.p("Annotations are added: " + labelAnnots.size());
         manager.addAxioms(ontology, labelAnnots);
         // create mapping
         icd9Map = new HashMap<>();
-        System.out.println("Creating ICD9 code-class mappings");
+        Out.p("Creating ICD9 code-class mappings");
         for (OWLClass cl : cls) {
             String clCode = cl.getIRI().toString().replace("http://purl.bioontology.org/ontology/ICD9CM/", "");
             icd9Map.put(clCode, cl);
         }
     }
+
+
+
+
+
 
 
 
