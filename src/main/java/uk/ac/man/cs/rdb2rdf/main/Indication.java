@@ -15,4 +15,6 @@ public class Indication {
 
     public Set<String> conditions;
 
+    public Set<String> orders;
+
 }

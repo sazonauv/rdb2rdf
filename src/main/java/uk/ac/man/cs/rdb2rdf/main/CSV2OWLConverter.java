@@ -28,6 +28,7 @@ public class CSV2OWLConverter {
     public static final String TOP_MEDICINE = "Drug";
     public static final String TOP_DISEASE = "Disease";
     public static final String TOP_PATIENT = "Patient";
+    public static final String TOP_ORDER = "Order";
 
     public static final String TOP_PLAUSIBILITY = "Plausibility";
     public static final String LOW_PLAUSIBILITY = "Low";
