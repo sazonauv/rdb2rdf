@@ -21,7 +21,7 @@ public class CSV2OWLConverter {
 
     public static final String IRI_DELIMITER = "#";
     public static final String ENTITY_DELIMITER = "-";
-    public static final String IND_SUFFIX = "_ind";
+    public static final String IND_SUFFIX = "i";
 
     public static final String TOP_CLASS = "DomainConcept";
 
@@ -30,6 +30,9 @@ public class CSV2OWLConverter {
     public static final String TOP_PATIENT = "Patient";
     public static final String TOP_ORDER = "Order";
 
+    public static final String TOP_LAB = "Lab";
+    public static final String TOP_ENCOUNTER = "Encounter";
+
     public static final String TOP_PLAUSIBILITY = "Plausibility";
     public static final String LOW_PLAUSIBILITY = "Low";
     public static final String MEDIUM_PLAUSIBILITY = "Medium";
@@ -37,8 +40,6 @@ public class CSV2OWLConverter {
 
 
     public static final String TOP_PROPERTY = "domainObjectProperty";
-
-
 
 
 
@@ -61,10 +62,24 @@ public class CSV2OWLConverter {
     public static void main(String args[])
             throws OWLOntologyCreationException,
             IOException, OWLOntologyStorageException {
+//        createUsingICD9(new File(args[0]), new File(args[1]), new File(args[2]));
+        create(new File(args[0]), new File(args[1]));
+    }
+
+
+    private static void create(File file0, File file1)
+            throws OWLOntologyCreationException, OWLOntologyStorageException, IOException {
         CSV2OWLConverter converter = new CSV2OWLConverter();
-        converter.addICD9Ontology(new File(args[2]));
-//        converter.addICD9Classes(new File(args[2]));
-        converter.createOntology(new File(args[0]), new File(args[1]));
+        converter.createOntology(file0, file1);
+    }
+
+
+    private static void createUsingICD9(File file0, File file1, File file2)
+            throws OWLOntologyCreationException, IOException, OWLOntologyStorageException {
+        CSV2OWLConverter converter = new CSV2OWLConverter();
+        converter.addICD9Ontology(file2);
+//        converter.addICD9Classes(file2);
+        converter.createOntology(file0, file1);
     }
 
 
@@ -88,7 +103,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         Out.p(i + " lines are processed");
                     }
-                    processRowAsMedicineDiagnosisICD9(row);
+                    processRowAsMedicineLabRich(row);
                 }
             }
         } catch (Exception e) {
@@ -215,6 +230,66 @@ public class CSV2OWLConverter {
         manager.addAxioms(ontology, axioms);
     }
 
+
+    // see join_medicine_lab.sql
+    private void processRowAsMedicineLabRich(String[] row) {
+        OWLAnnotationProperty labelProp = factory.getRDFSLabel();
+        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribedDrug");
+        OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
+        IRI orderedLabIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "orderedLab");
+        OWLObjectProperty orderedLabProp = factory.getOWLObjectProperty(orderedLabIRI);
+
+        Set<OWLAxiom> axioms = new HashSet<>();
+
+        // top encounter
+        IRI encTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_ENCOUNTER);
+        OWLClass encTopClass = factory.getOWLClass(encTopIRI);
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+        axioms.add(factory.getOWLClassAssertionAxiom(encTopClass, encInd));
+
+        // top medicine
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_MEDICINE);
+        OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
+        // medicine
+        String medicineCodeStr = processCell(row[1]);
+        String medicineBrandStr = processCell(row[2]);
+        String medicineClassStr = processCell(row[3]);
+        IRI medicineCodeIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineCodeStr);
+        OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineCodeIRI);
+        IRI medicineClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineClassStr);
+        OWLClass medicineClass = factory.getOWLClass(medicineClassIRI);
+        // medicine name
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, medicineInd.getIRI(),
+                factory.getOWLLiteral(medicineBrandStr)));
+        axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
+        axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
+
+        // top lab
+        IRI labTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_LAB);
+        OWLClass labTopClass = factory.getOWLClass(labTopIRI);
+        // lab
+        String labStr = processCell(row[4]);
+        IRI labIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + labStr);
+        OWLNamedIndividual labInd = factory.getOWLNamedIndividual(labIndIRI);
+        IRI labIRI = IRI.create(IRI_NAME + IRI_DELIMITER + labStr + ENTITY_DELIMITER + IND_SUFFIX);
+        OWLClass labClass = factory.getOWLClass(labIRI);
+        // lab name
+        String labNameStr = processCell(row[5]);
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, labInd.getIRI(),
+                factory.getOWLLiteral(labNameStr)));
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, labClass.getIRI(),
+                factory.getOWLLiteral(labNameStr)));
+        axioms.add(factory.getOWLClassAssertionAxiom(labClass, labInd));
+        axioms.add(factory.getOWLSubClassOfAxiom(labClass, labTopClass));
+        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(orderedLabProp, encInd, labInd));
+
+        // axioms
+        manager.addAxioms(ontology, axioms);
+    }
 
 
     // see join_medicine_diagnosis.sql
