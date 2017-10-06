@@ -4,6 +4,8 @@ import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 
 import java.io.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -17,7 +19,7 @@ import static uk.ac.man.cs.rdb2rdf.main.CSV.processCell;
  */
 public class CSV2OWLConverter {
 
-    private static final String IRI_NAME = "http://owl.cs.manchester.ac.uk/healthefacts";
+    public static final String IRI_NAME = "http://owl.cs.manchester.ac.uk/healthefacts";
 
     public static final String IRI_DELIMITER = "#";
     public static final String ENTITY_DELIMITER = "-";
@@ -37,6 +39,10 @@ public class CSV2OWLConverter {
     public static final String LOW_PLAUSIBILITY = "Low";
     public static final String MEDIUM_PLAUSIBILITY = "Medium";
     public static final String HIGH_PLAUSIBILITY = "High";
+
+    public static final String YEAR = "year";
+    public static final String MONTH = "month";
+    public static final String DAY = "day";
 
 
     public static final String TOP_PROPERTY = "domainObjectProperty";
@@ -103,7 +109,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         Out.p(i + " lines are processed");
                     }
-                    processRowAsMedicineLabRich(row);
+                    processRowAsMedicineLabTime(row);
                 }
             }
         } catch (Exception e) {
@@ -122,7 +128,7 @@ public class CSV2OWLConverter {
         }
 
         // filter temporal information
-        removeMultipleAge();
+//        removeMultipleAge();
 
         FileOutputStream outputStream = new FileOutputStream(ontFile);
         BufferedOutputStream buffOutputStream = new BufferedOutputStream(outputStream);
@@ -232,12 +238,21 @@ public class CSV2OWLConverter {
 
 
     // see join_medicine_lab.sql
-    private void processRowAsMedicineLabRich(String[] row) {
-        OWLAnnotationProperty labelProp = factory.getRDFSLabel();
+    private void processRowAsMedicineLabTime(String[] row) {
+        // object properties
         IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribedDrug");
         OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
         IRI orderedLabIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "orderedLab");
         OWLObjectProperty orderedLabProp = factory.getOWLObjectProperty(orderedLabIRI);
+
+        // annotation properties
+        OWLAnnotationProperty labelProp = factory.getRDFSLabel();
+        IRI yearPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + YEAR);
+        OWLAnnotationProperty yearProp = factory.getOWLAnnotationProperty(yearPropIRI);
+        IRI monthPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + MONTH);
+        OWLAnnotationProperty monthProp = factory.getOWLAnnotationProperty(monthPropIRI);
+        IRI dayPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + DAY);
+        OWLAnnotationProperty dayProp = factory.getOWLAnnotationProperty(dayPropIRI);
 
         Set<OWLAxiom> axioms = new HashSet<>();
 
@@ -266,7 +281,17 @@ public class CSV2OWLConverter {
                 factory.getOWLLiteral(medicineBrandStr)));
         axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
         axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
-        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd));
+        OWLAxiom prescrAxiom = factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd);
+        // annotation
+        String medDateStr = row[6];
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        LocalDateTime medDateTime = LocalDateTime.from(dtf.parse(medDateStr));
+        Set<OWLAnnotation> medAnnots = new HashSet<>();
+        medAnnots.add(factory.getOWLAnnotation(yearProp, factory.getOWLLiteral(medDateTime.getYear())));
+        medAnnots.add(factory.getOWLAnnotation(monthProp, factory.getOWLLiteral(medDateTime.getMonthValue())));
+        medAnnots.add(factory.getOWLAnnotation(dayProp, factory.getOWLLiteral(medDateTime.getDayOfMonth())));
+        OWLAxiom annPrescrAxiom = prescrAxiom.getAnnotatedAxiom(medAnnots);
+        axioms.add(annPrescrAxiom);
 
         // top lab
         IRI labTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_LAB);
@@ -285,7 +310,16 @@ public class CSV2OWLConverter {
                 factory.getOWLLiteral(labNameStr)));
         axioms.add(factory.getOWLClassAssertionAxiom(labClass, labInd));
         axioms.add(factory.getOWLSubClassOfAxiom(labClass, labTopClass));
-        axioms.add(factory.getOWLObjectPropertyAssertionAxiom(orderedLabProp, encInd, labInd));
+        OWLAxiom labAxiom = factory.getOWLObjectPropertyAssertionAxiom(orderedLabProp, encInd, labInd);
+        // annotation
+        String labDateStr = row[7];
+        LocalDateTime labDateTime = LocalDateTime.from(dtf.parse(labDateStr));
+        Set<OWLAnnotation> labAnnots = new HashSet<>();
+        labAnnots.add(factory.getOWLAnnotation(yearProp, factory.getOWLLiteral(labDateTime.getYear())));
+        labAnnots.add(factory.getOWLAnnotation(monthProp, factory.getOWLLiteral(labDateTime.getMonthValue())));
+        labAnnots.add(factory.getOWLAnnotation(dayProp, factory.getOWLLiteral(labDateTime.getDayOfMonth())));
+        OWLAxiom annLabAxiom = labAxiom.getAnnotatedAxiom(labAnnots);
+        axioms.add(annLabAxiom);
 
         // axioms
         manager.addAxioms(ontology, axioms);
