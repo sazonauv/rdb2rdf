@@ -36,7 +36,7 @@ public class DrugContraindicationMapper {
 
     private Map<String, Indication> drug2IndicMap;
 
-    private double scaleFactor;
+    private double scaleFactor = 1.0;
 
 
 
@@ -666,7 +666,7 @@ public class DrugContraindicationMapper {
             throws Exception {
         DrugContraindicationMapper converter = new DrugContraindicationMapper(
                 new File(args[0]), new File(args[1]), new File(args[2]),
-                new File(args[3]), new File(args[4]), 0.04);
+                new File(args[3]), new File(args[4]), 1.0);
         converter.addICD9Ontology(new File(args[5]));
         converter.computeClassHierarchy();
         converter.createMekonOntology(new File(args[6]));
