@@ -1,6 +1,6 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.io;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.ENTITY_DELIMITER;
+import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.ENTITY_DELIMITER;
 
 /**
  * Created by slava on 04/09/17.

@@ -1,4 +1,4 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.io;
 
 /**
  * Created by slava on 06/09/17.

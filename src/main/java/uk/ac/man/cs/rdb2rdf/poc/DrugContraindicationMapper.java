@@ -1,16 +1,18 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.poc;
 
 import com.opencsv.CSVReader;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import org.semanticweb.owlapi.reasoner.InferenceType;
 import org.semanticweb.owlapi.reasoner.OWLReasoner;
+import uk.ac.man.cs.rdb2rdf.io.Out;
+import uk.ac.man.cs.rdb2rdf.ont.ReasonerLoader;
 
 import java.io.*;
 import java.util.*;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV.processCell;
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.*;
+import static uk.ac.man.cs.rdb2rdf.io.CSV.processCell;
+import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.*;
 
 
 /**

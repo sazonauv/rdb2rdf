@@ -1,7 +1,8 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.poc;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
+import uk.ac.man.cs.rdb2rdf.io.Out;
 
 import java.io.*;
 import java.time.LocalDateTime;
@@ -11,8 +12,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV.DELIMITER;
-import static uk.ac.man.cs.rdb2rdf.main.CSV.processCell;
+import static uk.ac.man.cs.rdb2rdf.io.CSV.DELIMITER;
+import static uk.ac.man.cs.rdb2rdf.io.CSV.processCell;
 
 /**
  * Created by slava on 01/03/17.
@@ -68,8 +69,8 @@ public class CSV2OWLConverter {
     public static void main(String args[])
             throws OWLOntologyCreationException,
             IOException, OWLOntologyStorageException {
-//        createUsingICD9(new File(args[0]), new File(args[1]), new File(args[2]));
-        create(new File(args[0]), new File(args[1]));
+        createUsingICD9(new File(args[0]), new File(args[1]), new File(args[2]));
+//        create(new File(args[0]), new File(args[1]));
     }
 
 
@@ -84,7 +85,6 @@ public class CSV2OWLConverter {
             throws OWLOntologyCreationException, IOException, OWLOntologyStorageException {
         CSV2OWLConverter converter = new CSV2OWLConverter();
         converter.addICD9Ontology(file2);
-//        converter.addICD9Classes(file2);
         converter.createOntology(file0, file1);
     }
 
@@ -109,7 +109,7 @@ public class CSV2OWLConverter {
                     if (i % 1e4 == 0) {
                         Out.p(i + " lines are processed");
                     }
-                    processRowAsMedicineLabTime(row);
+                    processRowAsMedicineLabDiagnosisTime(row);
                 }
             }
         } catch (Exception e) {
@@ -233,6 +233,127 @@ public class CSV2OWLConverter {
         Set<OWLAxiom> axioms = new HashSet<>();
         axioms.add(factory.getOWLClassAssertionAxiom(condClass, encInd));
         axioms.add(factory.getOWLDataPropertyAssertionAxiom(measProp, encInd, measResLit));
+        manager.addAxioms(ontology, axioms);
+    }
+
+
+    // see join_medicine_lab_diagnosis.sql
+    private void processRowAsMedicineLabDiagnosisTime(String[] row) {
+        // object properties
+        IRI prescribedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "prescribedDrug");
+        OWLObjectProperty prescribedProp = factory.getOWLObjectProperty(prescribedIRI);
+        IRI orderedLabIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "orderedLab");
+        OWLObjectProperty orderedLabProp = factory.getOWLObjectProperty(orderedLabIRI);
+
+        // annotation properties
+        OWLAnnotationProperty labelProp = factory.getRDFSLabel();
+        IRI yearPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + YEAR);
+        OWLAnnotationProperty yearProp = factory.getOWLAnnotationProperty(yearPropIRI);
+        IRI monthPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + MONTH);
+        OWLAnnotationProperty monthProp = factory.getOWLAnnotationProperty(monthPropIRI);
+        IRI dayPropIRI = IRI.create(IRI_NAME + IRI_DELIMITER + DAY);
+        OWLAnnotationProperty dayProp = factory.getOWLAnnotationProperty(dayPropIRI);
+
+        Set<OWLAxiom> axioms = new HashSet<>();
+
+        // top encounter
+        IRI encTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_ENCOUNTER);
+        OWLClass encTopClass = factory.getOWLClass(encTopIRI);
+        // encounter
+        String encStr = processCell(row[0]);
+        IRI encIRI = IRI.create(IRI_NAME + IRI_DELIMITER + encStr);
+        OWLNamedIndividual encInd = factory.getOWLNamedIndividual(encIRI);
+        axioms.add(factory.getOWLClassAssertionAxiom(encTopClass, encInd));
+
+        // top medicine
+        IRI medicineTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_MEDICINE);
+        OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
+        // medicine
+        String medicineCodeStr = processCell(row[1]);
+        String medicineBrandStr = row[2];
+        String medicineClassStr = processCell(row[3]);
+        IRI medicineCodeIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineCodeStr);
+        OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineCodeIRI);
+        IRI medicineClassIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineClassStr);
+        OWLClass medicineClass = factory.getOWLClass(medicineClassIRI);
+        // medicine name
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, medicineInd.getIRI(),
+                factory.getOWLLiteral(medicineBrandStr)));
+        axioms.add(factory.getOWLClassAssertionAxiom(medicineClass, medicineInd));
+        axioms.add(factory.getOWLSubClassOfAxiom(medicineClass, medicineTopClass));
+        OWLAxiom prescrAxiom = factory.getOWLObjectPropertyAssertionAxiom(prescribedProp, encInd, medicineInd);
+        // time
+        String medDateStr = row[6];
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        LocalDateTime medDateTime = LocalDateTime.from(dtf.parse(medDateStr));
+        Set<OWLAnnotation> medAnnots = new HashSet<>();
+        medAnnots.add(factory.getOWLAnnotation(yearProp, factory.getOWLLiteral(medDateTime.getYear())));
+        medAnnots.add(factory.getOWLAnnotation(monthProp, factory.getOWLLiteral(medDateTime.getMonthValue())));
+        medAnnots.add(factory.getOWLAnnotation(dayProp, factory.getOWLLiteral(medDateTime.getDayOfMonth())));
+        OWLAxiom annPrescrAxiom = prescrAxiom.getAnnotatedAxiom(medAnnots);
+        axioms.add(annPrescrAxiom);
+
+        // top lab
+        IRI labTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_LAB);
+        OWLClass labTopClass = factory.getOWLClass(labTopIRI);
+        // lab
+        String labStr = processCell(row[4]);
+        IRI labIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + labStr);
+        OWLNamedIndividual labInd = factory.getOWLNamedIndividual(labIndIRI);
+        IRI labIRI = IRI.create(IRI_NAME + IRI_DELIMITER + labStr + IND_SUFFIX);
+        OWLClass labClass = factory.getOWLClass(labIRI);
+        // lab name
+        String labNameStr = row[5];
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, labInd.getIRI(),
+                factory.getOWLLiteral(labNameStr)));
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, labClass.getIRI(),
+                factory.getOWLLiteral(labNameStr)));
+        axioms.add(factory.getOWLClassAssertionAxiom(labClass, labInd));
+        axioms.add(factory.getOWLSubClassOfAxiom(labClass, labTopClass));
+        OWLAxiom labAxiom = factory.getOWLObjectPropertyAssertionAxiom(orderedLabProp, encInd, labInd);
+        // time
+        String labDateStr = row[7];
+        LocalDateTime labDateTime = LocalDateTime.from(dtf.parse(labDateStr));
+        Set<OWLAnnotation> labAnnots = new HashSet<>();
+        labAnnots.add(factory.getOWLAnnotation(yearProp, factory.getOWLLiteral(labDateTime.getYear())));
+        labAnnots.add(factory.getOWLAnnotation(monthProp, factory.getOWLLiteral(labDateTime.getMonthValue())));
+        labAnnots.add(factory.getOWLAnnotation(dayProp, factory.getOWLLiteral(labDateTime.getDayOfMonth())));
+        OWLAxiom annLabAxiom = labAxiom.getAnnotatedAxiom(labAnnots);
+        axioms.add(annLabAxiom);
+
+        // condition
+        String condStr = processCell(row[8]);
+        OWLClass condClass = findICD9Class(condStr);
+        if (condClass == null) {
+            return;
+        }
+        IRI condIndIRI = IRI.create(IRI_NAME + IRI_DELIMITER + condStr + IND_SUFFIX);
+        OWLNamedIndividual condInd = factory.getOWLNamedIndividual(condIndIRI);
+        String condNameStr = row[9];
+        axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, condInd.getIRI(),
+                factory.getOWLLiteral(condNameStr)));
+        // determine whether it is a diagnosis or procedure
+        OWLObjectProperty diagnosedExperiencedProp;
+        if (isDiagnosis(condStr)) {
+            IRI diagnosedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "diagnosed");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(diagnosedIRI);
+        } else {
+            IRI experiencedIRI = IRI.create(IRI_NAME + IRI_DELIMITER + "experienced");
+            diagnosedExperiencedProp = factory.getOWLObjectProperty(experiencedIRI);
+        }
+        axioms.add(factory.getOWLClassAssertionAxiom(condClass, condInd));
+        OWLAxiom condAxiom = factory.getOWLObjectPropertyAssertionAxiom(diagnosedExperiencedProp, encInd, condInd);
+        // time
+        String condDateStr = row[10];
+        LocalDateTime condDateTime = LocalDateTime.from(dtf.parse(condDateStr));
+        Set<OWLAnnotation> condAnnots = new HashSet<>();
+        condAnnots.add(factory.getOWLAnnotation(yearProp, factory.getOWLLiteral(condDateTime.getYear())));
+        condAnnots.add(factory.getOWLAnnotation(monthProp, factory.getOWLLiteral(condDateTime.getMonthValue())));
+        condAnnots.add(factory.getOWLAnnotation(dayProp, factory.getOWLLiteral(condDateTime.getDayOfMonth())));
+        OWLAxiom annCondAxiom = condAxiom.getAnnotatedAxiom(condAnnots);
+        axioms.add(annCondAxiom);
+
+        // axioms
         manager.addAxioms(ontology, axioms);
     }
 

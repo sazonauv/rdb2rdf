@@ -1,6 +1,5 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.ont;
 
-import org.semanticweb.HermiT.Reasoner;
 import org.semanticweb.HermiT.ReasonerFactory;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.reasoner.OWLReasoner;

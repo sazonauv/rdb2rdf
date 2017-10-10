@@ -1,4 +1,4 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.poc;
 
 import org.semanticweb.owlapi.model.OWLAnnotation;
 import org.semanticweb.owlapi.model.OWLAxiom;
@@ -6,9 +6,9 @@ import org.semanticweb.owlapi.model.OWLAxiom;
 import java.util.Comparator;
 import java.util.Set;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.DAY;
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.MONTH;
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.YEAR;
+import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.DAY;
+import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.MONTH;
+import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.YEAR;
 
 /**
  * Created by slava on 06/10/17.

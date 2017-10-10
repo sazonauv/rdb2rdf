@@ -1,4 +1,4 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.io;
 
 import java.sql.Connection;
 import java.sql.DriverManager;

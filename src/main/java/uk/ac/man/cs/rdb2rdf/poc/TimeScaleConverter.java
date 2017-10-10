@@ -1,4 +1,4 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.poc;
 
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
@@ -10,7 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.util.*;
 
-import static uk.ac.man.cs.rdb2rdf.main.CSV2OWLConverter.*;
+import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.*;
 
 /**
  * Created by slava on 06/10/17.
@@ -33,14 +33,21 @@ public class TimeScaleConverter {
         IRI encTopIRI = IRI.create(IRI_NAME + IRI_DELIMITER + TOP_ENCOUNTER);
         OWLClass encTopClass = factory.getOWLClass(encTopIRI);
 
+        // create
+        IRI iri = IRI.create(inOnt.getOntologyID().getOntologyIRI().get() + ENTITY_DELIMITER + "time");
+        OWLOntology outOnt = manager.createOntology(iri);
+        manager.addAxioms(outOnt, inOnt.getAxioms());
+
         // find encounters
         Set<OWLAxiom> aboxAxioms = inOnt.getABoxAxioms(Imports.INCLUDED);
         Set<OWLNamedIndividual> encInds = new HashSet<>();
         for (OWLAxiom ax : aboxAxioms) {
             if (ax.isOfType(AxiomType.CLASS_ASSERTION)) {
                 OWLClassAssertionAxiom clAs = (OWLClassAssertionAxiom) ax;
-                if (clAs.equals(encTopClass)) {
+                if (clAs.getClassExpression().equals(encTopClass)) {
                     encInds.add((OWLNamedIndividual) clAs.getIndividual());
+                    // remove old ones
+                    manager.removeAxiom(outOnt, clAs);
                 }
             }
         }
@@ -50,7 +57,7 @@ public class TimeScaleConverter {
         for (OWLAxiom ax : aboxAxioms) {
             if (ax.isOfType(AxiomType.OBJECT_PROPERTY_ASSERTION)) {
                 OWLObjectPropertyAssertionAxiom opAs = (OWLObjectPropertyAssertionAxiom) ax;
-                OWLNamedIndividual ind = (OWLNamedIndividual) opAs.getObject();
+                OWLNamedIndividual ind = (OWLNamedIndividual) opAs.getSubject();
                 if (encInds.contains(ind)) {
                     List<OWLObjectPropertyAssertionAxiom> events = encEventsMap.get(ind);
                     if (events == null) {
@@ -69,41 +76,30 @@ public class TimeScaleConverter {
             events.sort(comparator);
         }
 
-        // create
-        IRI iri = IRI.create(inOnt.getOntologyID().getOntologyIRI().get() + ENTITY_DELIMITER + "time");
-        OWLOntology outOnt = manager.createOntology(iri);
-
-        // add all class assertions except encounters
-        for (OWLAxiom ax : aboxAxioms) {
-            if (ax.isOfType(AxiomType.CLASS_ASSERTION)) {
-                OWLClassAssertionAxiom clAs = (OWLClassAssertionAxiom) ax;
-                if (encInds.contains(clAs.getIndividual())) {
-                    continue;
-                }
-                manager.addAxiom(outOnt, clAs);
-            }
-        }
-
         // add timed encounters
         for (OWLNamedIndividual enc : encEventsMap.keySet()) {
             List<OWLObjectPropertyAssertionAxiom> events = encEventsMap.get(enc);
             String encStr = enc.getIRI().toString();
             int i = 0;
-            while (i<events.size()) {
+            int id = 1;
+            while (i<events.size()-1) {
                 int j = i + 1;
-                while (comparator.compare(events.get(i), events.get(j)) == 0) {
+                while (j<events.size()-1 && comparator.compare(events.get(i), events.get(j)) == 0) {
                     j++;
                 }
                 for (int k=i; k<=j; k++) {
-                    IRI newEncIRI = IRI.create(encStr + k);
+                    IRI newEncIRI = IRI.create(encStr + ENTITY_DELIMITER + id);
                     OWLNamedIndividual newEnc = factory.getOWLNamedIndividual(newEncIRI);
+                    manager.addAxiom(outOnt, factory.getOWLClassAssertionAxiom(encTopClass, newEnc));
                     OWLObjectPropertyAssertionAxiom event = events.get(k);
                     OWLObjectPropertyAssertionAxiom newEvent = factory.getOWLObjectPropertyAssertionAxiom(
                             event.getProperty(), newEnc, event.getObject());
                     manager.addAxiom(outOnt, newEvent);
                 }
                 i = j;
+                id++;
             }
+            manager.removeAxioms(outOnt, new HashSet<>(events));
         }
 
         // save

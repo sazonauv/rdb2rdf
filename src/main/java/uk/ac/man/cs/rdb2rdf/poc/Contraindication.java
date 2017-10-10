@@ -1,11 +1,11 @@
-package uk.ac.man.cs.rdb2rdf.main;
+package uk.ac.man.cs.rdb2rdf.poc;
 
 import java.util.Set;
 
 /**
- * Created by slava on 21/09/17.
+ * Created by slava on 12/09/17.
  */
-public class Indication {
+public class Contraindication {
 
     public String drugName;
 
@@ -15,6 +15,6 @@ public class Indication {
 
     public Set<String> conditions;
 
-    public Set<String> orders;
+    public String severity;
 
 }
