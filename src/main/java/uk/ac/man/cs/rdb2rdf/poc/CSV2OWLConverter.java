@@ -627,7 +627,7 @@ public class CSV2OWLConverter {
     }
 
 
-    private boolean isDiagnosis(String condStr) {
+    public static boolean isDiagnosis(String condStr) {
         if (condStr.indexOf("E") > -1 || condStr.indexOf("V") > -1) {
             return false;
         }
