@@ -1,5 +1,7 @@
 package uk.ac.man.cs.rdb2rdf.io;
 
+import org.apache.commons.text.StringEscapeUtils;
+
 import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.ENTITY_DELIMITER;
 
 /**
@@ -13,12 +15,13 @@ public interface CSV {
 
 
     public static String processCell(String str) {
-        return str.replace(" ", "").replace("\"", "")
-                .replace("\'", "").replace("\n", "")
-                .replace("\t", "").replace("\r", "")
-                .replace("\\", ENTITY_DELIMITER)
-                .replace("/", ENTITY_DELIMITER)
-                .replace("%", "").replace("(", "").replace(")", "");
+        return StringEscapeUtils.escapeXml11(str);
+//        return str.replace(" ", "").replace("\"", "")
+//                .replace("\'", "").replace("\n", "")
+//                .replace("\t", "").replace("\r", "")
+//                .replace("\\", ENTITY_DELIMITER)
+//                .replace("/", ENTITY_DELIMITER)
+//                .replace("%", "").replace("(", "").replace(")", "");
     }
 
 }

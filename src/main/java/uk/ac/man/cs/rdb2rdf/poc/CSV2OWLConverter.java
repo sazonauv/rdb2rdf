@@ -1,5 +1,6 @@
 package uk.ac.man.cs.rdb2rdf.poc;
 
+import com.opencsv.CSVReader;
 import org.semanticweb.owlapi.apibinding.OWLManager;
 import org.semanticweb.owlapi.model.*;
 import uk.ac.man.cs.rdb2rdf.io.Out;
@@ -93,32 +94,15 @@ public class CSV2OWLConverter {
             throws OWLOntologyCreationException,
             IOException, OWLOntologyStorageException {
         // populate the ontology
-        BufferedReader reader = null;
-        try {
-            if (csvFile.exists()) {
-                reader = new BufferedReader(new FileReader(csvFile));
-                // read the header
-                String line = reader.readLine();
-                // read the file line by line
-                int i = 0;
-                while ((line = reader.readLine()) != null) {
-                    // get all tokens in the line
-                    String[] row = line.split(DELIMITER);
-                    // debug
-                    i++;
-                    if (i % 1e4 == 0) {
-                        Out.p(i + " lines are processed");
-                    }
-                    processRowAsMedicineLabDiagnosisTime(row);
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                reader.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+        CSVReader reader = new CSVReader(new FileReader(csvFile));
+        reader.readNext();
+        String[] row = reader.readNext();
+        int count = 0;
+        while (row != null) {
+            processRowAsMedicineLabDiagnosisTime(row);
+            row = reader.readNext();
+            if (++count % 10000 == 0) {
+                Out.p("Reading CSV: " + count + " lines");
             }
         }
 

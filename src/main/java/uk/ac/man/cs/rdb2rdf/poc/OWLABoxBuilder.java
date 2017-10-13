@@ -67,9 +67,13 @@ public class OWLABoxBuilder {
     private void readConditions(File csvFile) throws IOException {
         CSVReader reader = new CSVReader(new FileReader(csvFile));
         String[] row = reader.readNext();
+        int count = 0;
         while (row != null) {
             processConditionLine(row);
             row = reader.readNext();
+            if (++count % 10000 == 0) {
+                Out.p("Reading conditions: " + count + " lines");
+            }
         }
     }
 
@@ -77,9 +81,13 @@ public class OWLABoxBuilder {
     private void readMedicines(File csvFile) throws IOException {
         CSVReader reader = new CSVReader(new FileReader(csvFile));
         String[] row = reader.readNext();
+        int count = 0;
         while (row != null) {
             processMedicineLine(row);
             row = reader.readNext();
+            if (++count % 10000 == 0) {
+                Out.p("Reading medicines: " + count + " lines");
+            }
         }
     }
 
@@ -89,9 +97,13 @@ public class OWLABoxBuilder {
     private void readLabs(File csvFile) throws IOException {
         CSVReader reader = new CSVReader(new FileReader(csvFile));
         String[] row = reader.readNext();
+        int count = 0;
         while (row != null) {
             processLabLine(row);
             row = reader.readNext();
+            if (++count % 10000 == 0) {
+                Out.p("Reading labs: " + count + " lines");
+            }
         }
     }
 
@@ -160,7 +172,7 @@ public class OWLABoxBuilder {
         OWLClass medicineTopClass = factory.getOWLClass(medicineTopIRI);
         // medicine
         String medicineCodeStr = processCell(row[1]);
-        String medicineBrandStr = row[2];
+        String medicineBrandStr = processCell(row[2]);
         String medicineClassStr = processCell(row[3]);
         IRI medicineCodeIRI = IRI.create(IRI_NAME + IRI_DELIMITER + medicineCodeStr);
         OWLNamedIndividual medicineInd = factory.getOWLNamedIndividual(medicineCodeIRI);
@@ -207,7 +219,7 @@ public class OWLABoxBuilder {
         IRI labIRI = IRI.create(IRI_NAME + IRI_DELIMITER + labStr + IND_SUFFIX);
         OWLClass labClass = factory.getOWLClass(labIRI);
         // lab name
-        String labNameStr = row[2];
+        String labNameStr = processCell(row[2]);
         axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, labInd.getIRI(),
                 factory.getOWLLiteral(labNameStr)));
         axioms.add(factory.getOWLAnnotationAssertionAxiom(labelProp, labClass.getIRI(),
