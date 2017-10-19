@@ -18,7 +18,7 @@ import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.*;
 /**
  * Created by slava on 04/09/17.
  */
-public class DrugContraindicationMapper {
+public class ContraindicationMapper {
 
     private static final String IRI_NAME = //"http://owl.cs.manchester.ac.uk/contraindication";
                                             "http://mekon/demo.owl";
@@ -42,8 +42,8 @@ public class DrugContraindicationMapper {
 
 
 
-    public DrugContraindicationMapper(File drug2contrcond, File cond2ICD, File drug2cat,
-                                      File drug2indiccond, File drug2id, double scaleFactor)
+    public ContraindicationMapper(File drug2contrcond, File cond2ICD, File drug2cat,
+                                  File drug2indiccond, File drug2id, double scaleFactor)
             throws OWLOntologyCreationException, IOException {
         // create an ontology
         IRI iri = IRI.create(IRI_NAME);
@@ -666,7 +666,7 @@ public class DrugContraindicationMapper {
 
     public static void main(String args[])
             throws Exception {
-        DrugContraindicationMapper converter = new DrugContraindicationMapper(
+        ContraindicationMapper converter = new ContraindicationMapper(
                 new File(args[0]), new File(args[1]), new File(args[2]),
                 new File(args[3]), new File(args[4]), 1.0);
         converter.addICD9Ontology(new File(args[5]));
