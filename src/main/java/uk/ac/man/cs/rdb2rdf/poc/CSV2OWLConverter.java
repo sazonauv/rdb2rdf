@@ -99,7 +99,8 @@ public class CSV2OWLConverter {
         String[] row = reader.readNext();
         int count = 0;
         while (row != null) {
-            processRowAsMedicineLabDiagnosisTime(row);
+            processRowAsMedicineLabTime(row);
+//            processRowAsMedicineLabDiagnosisTime(row);
             row = reader.readNext();
             if (++count % 10000 == 0) {
                 Out.p("Reading CSV: " + count + " lines");
