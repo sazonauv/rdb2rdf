@@ -17,7 +17,7 @@ import static uk.ac.man.cs.rdb2rdf.poc.CSV2OWLConverter.*;
 /**
  * Created by slava on 12/10/17.
  */
-public class OWLABoxBuilder {
+public class ABoxBuilder {
 
 
     private OWLOntologyManager manager;
@@ -26,7 +26,7 @@ public class OWLABoxBuilder {
 
     private Map<String, OWLClass> icd9Map;
 
-    public OWLABoxBuilder() throws OWLOntologyCreationException {
+    public ABoxBuilder() throws OWLOntologyCreationException {
         // create an ontology
         IRI iri = IRI.create(IRI_NAME);
         manager = OWLManager.createOWLOntologyManager();
@@ -44,7 +44,7 @@ public class OWLABoxBuilder {
 
     private static void createUsingICD9(File file0, File file1, File file2, File file3, File file4)
             throws OWLOntologyCreationException, IOException, OWLOntologyStorageException {
-        OWLABoxBuilder builder = new OWLABoxBuilder();
+        ABoxBuilder builder = new ABoxBuilder();
         builder.addICD9Ontology(file4);
         builder.createOntology(file0, file1, file2, file3);
     }
